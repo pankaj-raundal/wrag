@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wRag — Local Codebase RAG for GitHub Copilot</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --green: #16a34a;
+            --red: #dc2626;
+            --code-bg: #1e293b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 80px 24px 60px;
+            background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+            color: white;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+        .hero .tagline {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto 32px;
+        }
+
+        .hero .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 0.875rem;
+            margin: 0 4px;
+        }
+
+        /* Sections */
+        section {
+            padding: 60px 0;
+        }
+
+        section h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        section h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: -12px auto 40px;
+            font-size: 1.05rem;
+        }
+
+        /* Comparison */
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 32px;
+        }
+
+        @media (max-width: 700px) {
+            .comparison { grid-template-columns: 1fr; }
+            .hero h1 { font-size: 2rem; }
+        }
+
+        .comparison-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 28px;
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .comparison-card.bad { border-top: 4px solid var(--red); }
+        .comparison-card.good { border-top: 4px solid var(--green); }
+
+        .comparison-card h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .comparison-card .icon { font-size: 1.5rem; }
+
+        .comparison-card pre {
+            background: var(--code-bg);
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            overflow-x: auto;
+            margin-top: 12px;
+            line-height: 1.5;
+        }
+
+        .requests-count {
+            margin-top: 12px;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .requests-count.red { color: var(--red); }
+        .requests-count.green { color: var(--green); }
+
+        /* How it works */
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 32px;
+        }
+
+        @media (max-width: 700px) {
+            .steps { grid-template-columns: 1fr; }
+        }
+
+        .step {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 28px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .step .number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+        }
+
+        .step p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Diagram */
+        .diagram {
+            background: var(--code-bg);
+            color: #e2e8f0;
+            padding: 32px;
+            border-radius: 12px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            overflow-x: auto;
+            white-space: pre;
+            text-align: center;
+            margin: 32px 0;
+            line-height: 1.4;
+        }
+
+        /* Benefits table */
+        .benefits-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .benefits-table th {
+            background: var(--primary);
+            color: white;
+            padding: 14px 20px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .benefits-table td {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .benefits-table tr:last-child td { border-bottom: none; }
+
+        /* Savings */
+        .savings-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        @media (max-width: 700px) {
+            .savings-grid { grid-template-columns: 1fr; }
+        }
+
+        .saving-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .saving-card .percent {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--green);
+        }
+
+        .saving-card .label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        /* Quick start */
+        .quickstart {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 36px;
+            border: 1px solid var(--border);
+        }
+
+        .quickstart pre {
+            background: var(--code-bg);
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin: 12px 0 24px;
+            line-height: 1.6;
+        }
+
+        .quickstart code { color: #a5b4fc; }
+
+        /* Tools */
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .tool-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .tool-card .name {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 0.95rem;
+        }
+
+        .tool-card .desc {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 6px;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 24px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover { text-decoration: underline; }
+
+        /* CTA button */
+        .cta {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 1rem;
+            margin-top: 24px;
+            transition: background 0.2s;
+        }
+
+        .cta:hover { background: var(--primary-dark); }
+
+        .highlight-box {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 32px;
+            text-align: center;
+        }
+
+        .highlight-box strong { color: var(--green); }
+    </style>
+</head>
+<body>
+
+<!-- Hero -->
+<header class="hero">
+    <h1>wRag</h1>
+    <p class="tagline">Index your code and docs locally, so GitHub Copilot already knows your project before you ask it anything.</p>
+    <span class="badge">100% Local</span>
+    <span class="badge">No API Keys Needed</span>
+    <span class="badge">92 Tests Passing</span>
+    <br><br>
+    <a href="https://github.com/pankaj-raundal/wrag" class="cta">View on GitHub →</a>
+</header>
+
+<!-- Problem / Solution -->
+<section>
+    <div class="container">
+        <h2>The Problem & The Solution</h2>
+        <p class="subtitle">Every time you ask Copilot a question, it burns through requests reading your files. wRag gives it instant access to pre-indexed answers.</p>
+
+        <div class="comparison">
+            <div class="comparison-card bad">
+                <h3><span class="icon">❌</span> Without wRag</h3>
+                <pre>You: "How does auth work?"
+
+Copilot behind the scenes:
+ → Read project structure
+ → Search for "auth" in files
+ → Read Auth/Provider.php
+ → Read Auth/TokenManager.php
+ → Read config/auth.yaml
+ → Search for related tests
+ → Read Confluence docs</pre>
+                <p class="requests-count red">= 7 requests consumed</p>
+            </div>
+            <div class="comparison-card good">
+                <h3><span class="icon">✅</span> With wRag</h3>
+                <pre>You: "How does auth work?"
+
+Copilot behind the scenes:
+ → wRag search_code("auth")
+   ← Provider.php, TokenManager.php,
+     auth.yaml snippets returned
+ → wRag search_docs("auth flow")
+   ← Confluence section returned</pre>
+                <p class="requests-count green">= 2 requests consumed (70% saved)</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- How it works -->
+<section style="background: white;">
+    <div class="container">
+        <h2>How It Works</h2>
+        <p class="subtitle">Three simple steps — all running on your machine.</p>
+
+        <div class="steps">
+            <div class="step">
+                <div class="number">1</div>
+                <h3>Index</h3>
+                <p>wRag reads your code and docs, breaks them into smart chunks (functions, classes, sections), and stores them with semantic embeddings.</p>
+            </div>
+            <div class="step">
+                <div class="number">2</div>
+                <h3>Serve</h3>
+                <p>A tiny local MCP server runs in the background. Copilot discovers it automatically via VS Code configuration.</p>
+            </div>
+            <div class="step">
+                <div class="number">3</div>
+                <h3>Query</h3>
+                <p>When you ask Copilot anything, it calls wRag first to find relevant code — instead of scanning files one by one.</p>
+            </div>
+        </div>
+
+        <div class="diagram">┌─────────────────────────────────────────────────────┐
+│                    Your Machine                      │
+│                                                      │
+│   ┌───────────┐    index     ┌──────────────────┐   │
+│   │ Your Code │ ──────────→  │  Vector Database  │   │
+│   │ + Docs    │              │  (local, fast)    │   │
+│   └───────────┘              └────────┬─────────┘   │
+│                                       │              │
+│                                  query│results       │
+│                                       │              │
+│   ┌───────────┐   MCP tools   ┌──────┴─────────┐   │
+│   │  Copilot  │ ◄───────────► │  wRag Server    │   │
+│   └───────────┘               └────────────────┘   │
+└─────────────────────────────────────────────────────┘</div>
+    </div>
+</section>
+
+<!-- Savings -->
+<section>
+    <div class="container">
+        <h2>Request Savings</h2>
+        <p class="subtitle">How much does it actually save? Here's the math.</p>
+
+        <div class="savings-grid">
+            <div class="saving-card">
+                <div class="percent">~75%</div>
+                <div class="label">Simple code questions</div>
+            </div>
+            <div class="saving-card">
+                <div class="percent">~80%</div>
+                <div class="label">"Find where X is defined"</div>
+            </div>
+            <div class="saving-card">
+                <div class="percent">~70%</div>
+                <div class="label">"Explain this module"</div>
+            </div>
+            <div class="saving-card">
+                <div class="percent">~90%</div>
+                <div class="label">Repeated questions (cached)</div>
+            </div>
+        </div>
+
+        <div class="highlight-box">
+            <strong>Conservative estimate:</strong> A developer asking 50 questions/day saves <strong>150–250 requests daily</strong>.
+        </div>
+    </div>
+</section>
+
+<!-- Who is this for -->
+<section style="background: white;">
+    <div class="container">
+        <h2>Who Is This For?</h2>
+        <table class="benefits-table">
+            <thead>
+                <tr><th>You are...</th><th>Benefit</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><strong>Developer with large codebase</strong></td><td>Copilot answers faster and more accurately</td></tr>
+                <tr><td><strong>Team lead managing AI tool costs</strong></td><td>60–80% fewer Copilot requests per developer</td></tr>
+                <tr><td><strong>Developer with Confluence docs</strong></td><td>Copilot can reference your team's documentation</td></tr>
+                <tr><td><strong>Anyone hitting rate limits</strong></td><td>Get more done within your quota</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Tools -->
+<section>
+    <div class="container">
+        <h2>What Copilot Gets</h2>
+        <p class="subtitle">5 search tools — available automatically once connected.</p>
+
+        <div class="tools-grid">
+            <div class="tool-card">
+                <div class="name">search_code</div>
+                <div class="desc">Semantic search across your indexed codebase. Ask by meaning, not keywords.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">search_docs</div>
+                <div class="desc">Search your Confluence documentation without leaving VS Code.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">search_symbol</div>
+                <div class="desc">Find functions, classes, or methods by name instantly.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">list_apps</div>
+                <div class="desc">See all indexed projects with chunk counts and languages.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">app_overview</div>
+                <div class="desc">Get statistics and details on a specific indexed project.</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Quick Start -->
+<section style="background: white;">
+    <div class="container">
+        <h2>Quick Start</h2>
+        <p class="subtitle">Up and running in under 5 minutes.</p>
+
+        <div class="quickstart">
+            <h3>1. Install</h3>
+            <pre>git clone https://github.com/pankaj-raundal/wrag.git
+cd wrag
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .</pre>
+
+            <h3>2. Register &amp; Index Your Project</h3>
+            <pre>wrag add myproject /path/to/your/project
+wrag index myproject</pre>
+
+            <h3>3. Connect to VS Code Copilot</h3>
+            <p>Copy <code>.vscode/mcp.json</code> to your project, or add globally:</p>
+            <pre>{
+  "servers": {
+    "wrag": {
+      "type": "stdio",
+      "command": "wrag",
+      "args": ["serve"]
+    }
+  }
+}</pre>
+
+            <h3>4. (Optional) Auto-Reindex on Changes</h3>
+            <pre>wrag watch</pre>
+        </div>
+    </div>
+</section>
+
+<!-- Features -->
+<section>
+    <div class="container">
+        <h2>Key Features</h2>
+        <div class="tools-grid">
+            <div class="tool-card">
+                <div class="name">🧠 Language-Aware Chunking</div>
+                <div class="desc">Splits code at function/class boundaries using tree-sitter. Supports Python, PHP, JS/TS, Markdown, YAML.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">📄 Confluence Integration</div>
+                <div class="desc">Indexes entire Confluence spaces. Copilot can answer questions from your team docs.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">⚡ Incremental Indexing</div>
+                <div class="desc">Only re-processes files that actually changed (SHA-256 tracking). Second run takes seconds.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">👁️ File Watcher</div>
+                <div class="desc">Watches your workspace and automatically re-indexes when files change. Always up to date.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">🔒 100% Local</div>
+                <div class="desc">All embeddings run on your CPU. No code leaves your machine. No external API keys required.</div>
+            </div>
+            <div class="tool-card">
+                <div class="name">🚀 Fast Search</div>
+                <div class="desc">Vector search returns results in under 100ms. Copilot gets answers instantly.</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <p>
+        <a href="https://github.com/pankaj-raundal/wrag">GitHub</a> · 
+        MIT License · 
+        Built by <a href="https://github.com/pankaj-raundal">Pankaj Raundal</a>
+    </p>
+    <p style="margin-top: 8px; font-size: 0.85rem;">Python 3.10+ · LanceDB · sentence-transformers · FastMCP</p>
+</footer>
+
+</body>
+</html>
