@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wrag"
+version = "0.1.0"
+description = "Local codebase RAG for GitHub Copilot — indexes workspaces and Confluence into a vector DB, serves via MCP"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Pankaj Raundal"}
+]
+
+dependencies = [
+    "click>=8.1",
+    "pyyaml>=6.0",
+    "lancedb>=0.33",
+    "sentence-transformers>=5.0",
+    "tree-sitter>=0.25",
+    "tree-sitter-languages>=1.10",
+    "pyarrow>=14.0",
+    "mcp[cli]>=1.27",
+    "watchdog>=4.0",
+    "rich>=13.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+wrag = "wrag.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

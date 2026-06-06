@@ -1,0 +1,28 @@
+# Data / vector DB
+.data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sentence-transformers model cache (optional, can be large)
+# Uncomment if you don't want to version the model cache
+# .cache/
