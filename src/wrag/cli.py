@@ -219,5 +219,52 @@ def serve():
     run_stdio()
 
 
+@main.command()
+@click.option("--debounce", default=2.0, help="Seconds to wait before re-indexing (default 2)")
+def watch(debounce: float):
+    """Watch registered workspaces and auto re-index on file changes."""
+    from wrag.indexer import index_workspace
+    from wrag.watcher import WorkspaceWatcher
+
+    config = load_config()
+    embedder_name = config.settings.embedding_model
+
+    if not config.workspaces:
+        console.print("[yellow]No workspaces registered. Use `wrag add` first.[/yellow]")
+        return
+
+    def on_change(app_name: str, changed_paths: set[str]):
+        console.print(
+            f"[cyan]⟳[/cyan] {len(changed_paths)} file(s) changed in [bold]{app_name}[/bold], re-indexing..."
+        )
+        from wrag.embedder import get_embedder
+
+        source = config.find_source(app_name)
+        if source and hasattr(source, "path"):
+            embedder = get_embedder(embedder_name)
+            result = index_workspace(source, config.settings, embedder, force=False)
+            console.print(
+                f"  [green]✓[/green] indexed {result.get('files_indexed', 0)} file(s), "
+                f"{result.get('chunks_stored', 0)} chunk(s)"
+            )
+
+    workspaces = [(w.name, w.path) for w in config.workspaces]
+    watcher = WorkspaceWatcher(
+        workspaces=workspaces,
+        settings=config.settings,
+        on_change=on_change,
+        debounce_seconds=debounce,
+    )
+
+    console.print(f"[green]Watching {len(workspaces)} workspace(s):[/green]")
+    for name, path in workspaces:
+        console.print(f"  • {name} → {path}")
+    console.print("[dim]Press Ctrl+C to stop.[/dim]")
+
+    watcher.start()
+    watcher.wait()
+    console.print("\n[dim]Watcher stopped.[/dim]")
+
+
 if __name__ == "__main__":
     main()

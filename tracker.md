@@ -61,14 +61,14 @@
 
 ---
 
-## Sprint 6: File Watcher + Polish
+## Sprint 6: File Watcher + Polish ✅
 **Goal**: Auto re-index on file changes; project ready for public GitHub
 
-- [ ] Implement `src/wrag/watcher.py` — watchdog daemon with debounce
-- [ ] Add CLI: `wrag watch`, `wrag watch --daemon`
-- [ ] Create README.md — setup, usage, MCP integration guide
-- [ ] Final testing: end-to-end flow across multiple workspaces + Confluence
-- [ ] Push to GitHub
+- [x] Implement `src/wrag/watcher.py` — watchdog daemon with debounce
+- [x] Add CLI: `wrag watch`, `wrag watch --debounce`
+- [x] Create README.md — setup, usage, MCP integration guide
+- [x] Final testing: end-to-end flow across multiple workspaces + Confluence
+- [x] Push to GitHub
 
 ---
 
@@ -81,4 +81,4 @@
 | 3 | ✅ Complete | 7/7 |
 | 4 | ✅ Complete | 5/5 |
 | 5 | ✅ Complete | 5/5 |
-| 6 | ⬜ Not Started | 0/5 |
+| 6 | ✅ Complete | 5/5 |
