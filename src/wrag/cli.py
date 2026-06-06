@@ -128,5 +128,87 @@ def config():
         console.print(f"  {c.name} → {c.domain} ({c.space_key})")
 
 
+@main.command()
+@click.argument("name", required=False)
+@click.option("--force", is_flag=True, help="Re-index everything, ignoring hashes")
+def index(name: str | None, force: bool):
+    """Index one or all registered sources.
+
+    NAME: optional source name to index (omit to index all)
+    """
+    from wrag.indexer import index_source
+
+    index_source(name=name, force=force)
+
+
+@main.command()
+def status():
+    """Show indexing stats per source."""
+    from wrag import store as st
+
+    stats = st.stats()
+    if not stats:
+        console.print("[dim]No indexed data. Run `wrag index` first.[/dim]")
+        return
+
+    table = Table(title="Index Status")
+    table.add_column("Source", style="cyan")
+    table.add_column("Type", style="green")
+    table.add_column("Files", justify="right")
+    table.add_column("Chunks", justify="right")
+    table.add_column("Languages")
+    table.add_column("Last Indexed")
+
+    import time
+    for app_name, info in stats.items():
+        last = time.strftime("%Y-%m-%d %H:%M", time.localtime(info["last_indexed"]))
+        table.add_row(
+            app_name,
+            info["source_type"],
+            str(info["file_count"]),
+            str(info["chunk_count"]),
+            ", ".join(info["languages"]),
+            last,
+        )
+
+    console.print(table)
+    console.print(f"\n[dim]Total chunks: {st.total_chunks()}[/dim]")
+
+
+@main.command()
+@click.argument("query")
+@click.option("--app", default=None, help="Filter by app name")
+@click.option("--top-k", default=5, help="Number of results")
+def search(query: str, app: str | None, top_k: int):
+    """Search indexed codebase (for testing).
+
+    QUERY: natural language search query
+    """
+    from wrag.config import load_config as _load_config
+    from wrag.embedder import get_embedder
+    from wrag import store as st
+
+    cfg = _load_config()
+    embedder = get_embedder(cfg.settings)
+
+    console.print(f"[dim]Embedding query...[/dim]")
+    query_vector = embedder.embed([query])[0]
+
+    results = st.search(query_vector, app_name=app, top_k=top_k)
+
+    if not results:
+        console.print("[yellow]No results found.[/yellow]")
+        return
+
+    for i, r in enumerate(results, 1):
+        score = r.get("score", 0)
+        console.print(f"\n[bold cyan]{i}.[/bold cyan] {r['path']}:{r['start_line']}-{r['end_line']}")
+        console.print(f"   [dim]{r['app_name']} | {r['language']} | {r['symbol_type']}: {r['symbol_name']}[/dim]")
+        console.print(f"   [dim]distance: {score:.4f}[/dim]")
+        # Show first 3 lines of content
+        preview = "\n".join(r["text"].split("\n")[:3])
+        console.print(f"   {preview}")
+
+
 if __name__ == "__main__":
     main()

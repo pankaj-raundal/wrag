@@ -26,16 +26,16 @@
 
 ---
 
-## Sprint 3: Vector Store + Indexer
+## Sprint 3: Vector Store + Indexer ✅
 **Goal**: `wrag index <app>` indexes a workspace; `wrag status` shows stats
 
-- [ ] Implement `src/wrag/store.py` — LanceDB connect, upsert, delete, search, stats
-- [ ] Implement `src/wrag/sources/workspace.py` — file walker with exclusions + hash computation
-- [ ] Implement `src/wrag/indexer.py` — orchestrate: walk → hash compare → chunk → embed → store
-- [ ] Add CLI commands: `wrag index [name]`, `wrag index --force`, `wrag status`, `wrag search`
-- [ ] Create `tests/test_store.py` — test upsert, search, delete
-- [ ] Create `tests/test_indexer.py` — test incremental indexing (mock embedder)
-- [ ] Verify: `wrag add devopsagent <path>` + `wrag index devopsagent` → chunks stored; second run skips unchanged
+- [x] Implement `src/wrag/store.py` — LanceDB connect, upsert, delete, search, stats
+- [x] Implement `src/wrag/sources/workspace.py` — file walker with exclusions + hash computation
+- [x] Implement `src/wrag/indexer.py` — orchestrate: walk → hash compare → chunk → embed → store
+- [x] Add CLI commands: `wrag index [name]`, `wrag index --force`, `wrag status`, `wrag search`
+- [x] Create `tests/test_store.py` — test upsert, search, delete
+- [x] Create `tests/test_indexer.py` — test incremental indexing (mock embedder)
+- [x] Verify: `wrag add devopsagent <path>` + `wrag index devopsagent` → chunks stored; second run skips unchanged
 
 ---
 
@@ -78,7 +78,7 @@
 |--------|--------|------------|
 | 1 | ✅ Complete | 9/9 |
 | 2 | ✅ Complete | 5/5 |
-| 3 | 🔄 In Progress | 0/7 |
+| 3 | ✅ Complete | 7/7 |
 | 4 | ⬜ Not Started | 0/5 |
 | 5 | ⬜ Not Started | 0/5 |
 | 6 | ⬜ Not Started | 0/5 |
