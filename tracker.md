@@ -15,14 +15,14 @@
 
 ---
 
-## Sprint 2: Chunker + Embedder
+## Sprint 2: Chunker + Embedder ✅
 **Goal**: Can parse code files into AST-aware chunks and generate embeddings
 
-- [ ] Implement `src/wrag/chunker.py` — tree-sitter chunking (Python, PHP, YAML, JSON, Markdown, fallback)
-- [ ] Implement `src/wrag/embedder.py` — LocalEmbedder (sentence-transformers) + OpenAIEmbedder + factory
-- [ ] Create `tests/test_chunker.py` — test each language parser
-- [ ] Create `tests/test_embedder.py` — test embedding output shape/type
-- [ ] Verify: chunk a Python file → get function-level chunks; embed them → get 384-dim vectors
+- [x] Implement `src/wrag/chunker.py` — tree-sitter chunking (Python, PHP, YAML, JSON, Markdown, fallback)
+- [x] Implement `src/wrag/embedder.py` — LocalEmbedder (sentence-transformers) + OpenAIEmbedder + factory
+- [x] Create `tests/test_chunker.py` — test each language parser
+- [x] Create `tests/test_embedder.py` — test embedding output shape/type
+- [x] Verify: chunk a Python file → get function-level chunks; embed them → get 384-dim vectors
 
 ---
 
@@ -77,8 +77,8 @@
 | Sprint | Status | Tasks Done |
 |--------|--------|------------|
 | 1 | ✅ Complete | 9/9 |
-| 2 | ⬜ Not Started | 0/5 |
-| 3 | ⬜ Not Started | 0/7 |
+| 2 | ✅ Complete | 5/5 |
+| 3 | 🔄 In Progress | 0/7 |
 | 4 | ⬜ Not Started | 0/5 |
 | 5 | ⬜ Not Started | 0/5 |
 | 6 | ⬜ Not Started | 0/5 |
