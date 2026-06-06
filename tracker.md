@@ -39,14 +39,14 @@
 
 ---
 
-## Sprint 4: Confluence Source
+## Sprint 4: Confluence Source ✅
 **Goal**: `wrag index <confluence-source>` fetches and indexes Confluence pages
 
-- [ ] Implement `src/wrag/sources/confluence.py` — API client, HTML→text, heading chunker
-- [ ] Wire into indexer: detect source type, dispatch to confluence handler
-- [ ] Add incremental: page version tracking in manifest
-- [ ] Create `tests/test_confluence.py` — test HTML parsing, chunking, API mock
-- [ ] Verify: `wrag add-confluence lionbridge-docs --domain X --space Y` + `wrag index lionbridge-docs` works
+- [x] Implement `src/wrag/sources/confluence.py` — API client, HTML→text, heading chunker
+- [x] Wire into indexer: detect source type, dispatch to confluence handler
+- [x] Add incremental: page version tracking in manifest
+- [x] Create `tests/test_confluence.py` — test HTML parsing, chunking, API mock
+- [x] Verify: `wrag add-confluence lionbridge-docs --domain X --space Y` + `wrag index lionbridge-docs` works
 
 ---
 
@@ -79,6 +79,6 @@
 | 1 | ✅ Complete | 9/9 |
 | 2 | ✅ Complete | 5/5 |
 | 3 | ✅ Complete | 7/7 |
-| 4 | ⬜ Not Started | 0/5 |
-| 5 | ⬜ Not Started | 0/5 |
+| 4 | ✅ Complete | 5/5 |
+| 5 | 🔄 In Progress | 0/5 |
 | 6 | ⬜ Not Started | 0/5 |

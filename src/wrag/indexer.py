@@ -202,7 +202,7 @@ def index_source(
         if isinstance(source, WorkspaceSource):
             index_workspace(source, config.settings, embedder, force=force)
         elif isinstance(source, ConfluenceSource):
-            console.print(f"[yellow]Confluence indexing will be available in Sprint 4.[/yellow]")
+            index_confluence(source, config.settings, embedder, force=force)
         return
 
     # Index all sources
@@ -215,4 +215,149 @@ def index_source(
         index_workspace(ws, config.settings, embedder, force=force)
 
     for conf in config.confluences:
-        console.print(f"\n[yellow]Skipping confluence '{conf.name}' (Sprint 4)[/yellow]")
+        console.print(f"\n[bold]Indexing confluence: {conf.name}[/bold]")
+        index_confluence(conf, config.settings, embedder, force=force)
+
+
+def index_confluence(
+    source: ConfluenceSource,
+    settings: Settings,
+    embedder: Embedder,
+    force: bool = False,
+) -> dict:
+    """Index a Confluence space source.
+
+    Args:
+        source: Confluence source config
+        settings: Global settings
+        embedder: Configured embedder instance
+        force: If True, re-index everything ignoring page versions
+
+    Returns:
+        Stats dict: {pages_fetched, pages_indexed, pages_skipped, chunks_added, elapsed}
+    """
+    from wrag.sources.confluence import (
+        ConfluenceClient,
+        chunk_confluence_page,
+        get_confluence_credentials,
+    )
+
+    start_time = time.time()
+    app_name = source.name
+
+    # Get credentials
+    try:
+        email, token = get_confluence_credentials(email_override=source.email)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        return {"error": str(e)}
+
+    # Load existing manifest (page_id → version)
+    old_manifest = {} if force else _load_manifest(app_name)
+    new_manifest: dict[str, str] = {}
+
+    # Fetch pages from Confluence
+    console.print(f"[dim]Fetching pages from {source.domain} (space: {source.space_key})...[/dim]")
+
+    client = ConfluenceClient(domain=source.domain, email=email, token=token)
+    try:
+        pages = client.fetch_pages(space_key=source.space_key)
+    except (PermissionError, ValueError, httpx.HTTPError) as e:
+        console.print(f"[red]Error:[/red] {e}")
+        return {"error": str(e)}
+    finally:
+        client.close()
+
+    console.print(f"[dim]Fetched {len(pages)} pages.[/dim]")
+
+    pages_indexed = 0
+    pages_skipped = 0
+    chunks_added = 0
+
+    # Determine which pages need re-indexing
+    pages_to_index = []
+    for page in pages:
+        version_key = f"{page.page_id}:v{page.version}"
+        new_manifest[page.page_id] = version_key
+
+        if page.page_id in old_manifest and old_manifest[page.page_id] == version_key:
+            pages_skipped += 1
+        else:
+            pages_to_index.append(page)
+
+    # Find deleted pages
+    deleted_pages = set(old_manifest.keys()) - set(new_manifest.keys())
+    for deleted_id in deleted_pages:
+        # Delete chunks for removed pages
+        store.delete_by_path(app_name, f"page:{deleted_id}")
+
+    if not pages_to_index:
+        console.print(f"[green]✓[/green] No changes detected. {pages_skipped} pages unchanged.")
+        _save_manifest(app_name, new_manifest)
+        return {
+            "pages_fetched": len(pages),
+            "pages_indexed": 0,
+            "pages_skipped": pages_skipped,
+            "pages_deleted": len(deleted_pages),
+            "chunks_added": 0,
+            "elapsed": time.time() - start_time,
+        }
+
+    # Process pages: chunk → embed → store
+    console.print(f"[dim]Indexing {len(pages_to_index)} changed pages...[/dim]")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Indexing pages", total=len(pages_to_index))
+
+        # Process in batches
+        batch_size = 10
+        for i in range(0, len(pages_to_index), batch_size):
+            batch = pages_to_index[i : i + batch_size]
+            batch_chunks = []
+
+            for page in batch:
+                # Chunk the page
+                chunks = chunk_confluence_page(page, app_name)
+                batch_chunks.extend(chunks)
+
+            if batch_chunks:
+                # Embed all chunks in this batch
+                texts = [c.text for c in batch_chunks]
+                vectors = embedder.embed(texts)
+
+                # Store
+                chunk_dicts = [c.to_dict() for c in batch_chunks]
+                count = store.upsert_chunks(
+                    app_name=app_name,
+                    chunks=chunk_dicts,
+                    vectors=vectors,
+                    dimension=embedder.dimension(),
+                )
+                chunks_added += count
+
+            pages_indexed += len(batch)
+            progress.update(task, advance=len(batch))
+
+    # Save updated manifest
+    _save_manifest(app_name, new_manifest)
+
+    elapsed = time.time() - start_time
+    console.print(
+        f"[green]✓[/green] Indexed {pages_indexed} pages → {chunks_added} chunks "
+        f"({pages_skipped} unchanged, {len(deleted_pages)} deleted) in {elapsed:.1f}s"
+    )
+
+    return {
+        "pages_fetched": len(pages),
+        "pages_indexed": pages_indexed,
+        "pages_skipped": pages_skipped,
+        "pages_deleted": len(deleted_pages),
+        "chunks_added": chunks_added,
+        "elapsed": elapsed,
+    }
