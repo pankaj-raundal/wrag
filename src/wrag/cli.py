@@ -210,5 +210,14 @@ def search(query: str, app: str | None, top_k: int):
         console.print(f"   {preview}")
 
 
+@main.command()
+def serve():
+    """Start the MCP server (stdio mode) for VS Code / GitHub Copilot."""
+    from wrag.mcp_server import run_stdio
+
+    console.print("[dim]Starting wRag MCP server (stdio)...[/dim]", err=True)
+    run_stdio()
+
+
 if __name__ == "__main__":
     main()

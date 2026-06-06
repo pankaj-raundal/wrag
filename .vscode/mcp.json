@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "wrag": {
+      "type": "stdio",
+      "command": "wrag",
+      "args": ["serve"]
+    }
+  }
+}

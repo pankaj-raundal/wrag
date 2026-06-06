@@ -50,14 +50,14 @@
 
 ---
 
-## Sprint 5: MCP Server
+## Sprint 5: MCP Server ✅
 **Goal**: Copilot can query indexed codebase via MCP tools
 
-- [ ] Implement `src/wrag/mcp_server.py` — FastMCP with search_code, search_docs, search_symbol, list_apps, app_overview
-- [ ] Add CLI: `wrag serve` (stdio mode)
-- [ ] Create `.vscode/mcp.json` for VS Code integration
-- [ ] Create `tests/test_mcp_server.py` — test tool responses
-- [ ] Verify: configure in VS Code → Copilot can call `search_code` and get results
+- [x] Implement `src/wrag/mcp_server.py` — FastMCP with search_code, search_docs, search_symbol, list_apps, app_overview
+- [x] Add CLI: `wrag serve` (stdio mode)
+- [x] Create `.vscode/mcp.json` for VS Code integration
+- [x] Create `tests/test_mcp_server.py` — test tool responses
+- [x] Verify: configure in VS Code → Copilot can call `search_code` and get results
 
 ---
 
@@ -80,5 +80,5 @@
 | 2 | ✅ Complete | 5/5 |
 | 3 | ✅ Complete | 7/7 |
 | 4 | ✅ Complete | 5/5 |
-| 5 | 🔄 In Progress | 0/5 |
+| 5 | ✅ Complete | 5/5 |
 | 6 | ⬜ Not Started | 0/5 |
