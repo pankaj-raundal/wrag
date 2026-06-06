@@ -266,5 +266,50 @@ def watch(debounce: float):
     console.print("\n[dim]Watcher stopped.[/dim]")
 
 
+@main.command()
+@click.option("--reset", is_flag=True, help="Clear the request log")
+def requests(reset: bool):
+    """Show wRag request statistics — how many tool calls have been served."""
+    from wrag.mcp_server import _STATS_FILE, get_request_stats
+
+    if reset:
+        if _STATS_FILE.exists():
+            _STATS_FILE.unlink()
+        console.print("[green]Request log cleared.[/green]")
+        return
+
+    stats = get_request_stats()
+
+    if stats["total"] == 0:
+        console.print("[yellow]No requests logged yet.[/yellow]")
+        console.print("[dim]Start the MCP server (wrag serve) and use Copilot to generate logs.[/dim]")
+        return
+
+    console.print(f"\n[bold]wRag Request Stats[/bold]")
+    console.print(f"  Total tool calls served:  [cyan]{stats['total']}[/cyan]")
+    console.print(f"  Total results returned:   [cyan]{stats['total_results']}[/cyan]")
+    console.print()
+
+    console.print("[bold]By Tool:[/bold]")
+    for tool, count in sorted(stats["by_tool"].items()):
+        console.print(f"  {tool}: {count} calls")
+
+    # Savings estimate
+    estimated_native = stats["total"] * 4
+    saved = estimated_native - stats["total"]
+    pct = saved / max(estimated_native, 1) * 100
+    console.print()
+    console.print("[bold]Estimated Savings:[/bold]")
+    console.print(f"  Without wRag: ~{estimated_native} requests (estimated)")
+    console.print(f"  With wRag:     {stats['total']} requests (actual)")
+    console.print(f"  [green bold]Saved: ~{saved} requests ({pct:.0f}%)[/green bold]")
+
+    if stats["recent"]:
+        console.print()
+        console.print("[bold]Recent Queries:[/bold]")
+        for r in stats["recent"][-10:]:
+            console.print(f"  [{r['tool']}] \"{r['query'][:60]}\" → {r['results']} results")
+
+
 if __name__ == "__main__":
     main()
