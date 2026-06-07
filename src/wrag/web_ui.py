@@ -40,81 +40,193 @@ HTML_PAGE = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>wRag — Query Preview</title>
+    <title>wRag — See How AI Gets Smarter Context</title>
     <style>
-        :root { --primary: #2563eb; --bg: #f8fafc; --surface: #fff; --text: #1e293b; --muted: #64748b; --border: #e2e8f0; --green: #16a34a; --code-bg: #1e293b; }
+        :root { --primary: #2563eb; --primary-light: #dbeafe; --bg: #f8fafc; --surface: #fff; --text: #1e293b; --muted: #64748b; --border: #e2e8f0; --green: #16a34a; --red: #dc2626; --orange: #ea580c; --code-bg: #1e293b; --purple: #7c3aed; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
-        .header { background: linear-gradient(135deg, #1e40af, #7c3aed); color: white; padding: 24px; text-align: center; }
-        .header h1 { font-size: 1.8rem; margin-bottom: 4px; }
-        .header p { opacity: 0.85; font-size: 0.95rem; }
-        .container { max-width: 960px; margin: 0 auto; padding: 24px; }
-        .search-box { background: var(--surface); border-radius: 12px; padding: 24px; border: 1px solid var(--border); margin-bottom: 24px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+
+        .header { background: linear-gradient(135deg, #1e40af, #7c3aed); color: white; padding: 32px 24px; text-align: center; }
+        .header h1 { font-size: 2rem; margin-bottom: 6px; }
+        .header p { opacity: 0.9; font-size: 1.05rem; max-width: 600px; margin: 0 auto; }
+
+        .container { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+
+        /* Flow Diagram */
+        .flow-section { margin-bottom: 36px; }
+        .flow-section h2 { font-size: 1.4rem; margin-bottom: 16px; text-align: center; }
+        .flow-diagram { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; padding: 20px; background: var(--surface); border-radius: 12px; border: 1px solid var(--border); }
+        .flow-step { text-align: center; padding: 12px 16px; min-width: 140px; }
+        .flow-step .icon { font-size: 2rem; margin-bottom: 6px; }
+        .flow-step .label { font-size: 0.8rem; color: var(--muted); }
+        .flow-step .title { font-weight: 700; font-size: 0.9rem; }
+        .flow-step.active { background: var(--primary-light); border-radius: 10px; }
+        .flow-arrow { font-size: 1.5rem; color: var(--muted); padding: 0 4px; }
+
+        /* Search Section */
+        .search-section { background: var(--surface); border-radius: 12px; padding: 28px; border: 1px solid var(--border); margin-bottom: 28px; }
+        .search-section h2 { font-size: 1.3rem; margin-bottom: 4px; }
+        .search-section .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 16px; }
         .form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-        .form-row input[type="text"] { flex: 1; min-width: 200px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
-        .form-row select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; background: white; }
-        .form-row button { padding: 10px 24px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+        .form-row input[type="text"] { flex: 1; min-width: 200px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
+        .form-row select { padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; background: white; }
+        .form-row button { padding: 12px 28px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
         .form-row button:hover { background: #1d4ed8; }
-        .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-        .tab { padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; border: 1px solid var(--border); background: var(--surface); }
-        .tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Step-by-step explanation after search */
+        .explanation { margin-bottom: 28px; }
+        .explanation h3 { font-size: 1.1rem; margin-bottom: 12px; color: var(--primary); }
+        .step-list { list-style: none; }
+        .step-list li { padding: 10px 14px; margin-bottom: 8px; border-radius: 8px; border-left: 4px solid var(--border); background: var(--surface); font-size: 0.92rem; }
+        .step-list li.done { border-left-color: var(--green); background: #f0fdf4; }
+        .step-list li .step-num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: var(--green); color: white; text-align: center; line-height: 24px; font-size: 0.75rem; font-weight: 700; margin-right: 8px; }
+        .step-list li .step-detail { color: var(--muted); font-size: 0.82rem; display: block; margin-top: 4px; margin-left: 32px; }
+
+        /* Comparison */
+        .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+        @media (max-width: 700px) { .comparison { grid-template-columns: 1fr; } }
+        .compare-card { background: var(--surface); border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+        .compare-card.without { border-top: 4px solid var(--red); }
+        .compare-card.with { border-top: 4px solid var(--green); }
+        .compare-card h4 { margin-bottom: 8px; font-size: 1rem; }
+        .compare-card .cost { font-size: 1.8rem; font-weight: 800; margin: 8px 0; }
+        .compare-card .cost.red { color: var(--red); }
+        .compare-card .cost.green { color: var(--green); }
+        .compare-card .detail { font-size: 0.85rem; color: var(--muted); }
+
+        /* Results */
+        .results-section h3 { font-size: 1.1rem; margin-bottom: 4px; }
+        .results-section .results-subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 14px; }
         .result { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
-        .result-header { padding: 12px 16px; background: #f1f5f9; border-bottom: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); }
-        .result-header strong { color: var(--text); font-size: 0.95rem; }
+        .result-header { padding: 12px 16px; background: #f1f5f9; border-bottom: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+        .result-header strong { color: var(--text); font-size: 0.92rem; }
+        .result-header .badge { background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
         .result-body { padding: 16px; }
-        .result-body pre { background: var(--code-bg); color: #e2e8f0; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 0.82rem; line-height: 1.5; white-space: pre-wrap; }
-        .meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .result-body pre { background: var(--code-bg); color: #e2e8f0; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; max-height: 200px; }
+        .meta { font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }
+
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
         .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
-        .stat-card .value { font-size: 2rem; font-weight: 800; color: var(--primary); }
-        .stat-card .label { font-size: 0.85rem; color: var(--muted); }
-        .info-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 0.9rem; }
-        .info-box strong { color: var(--green); }
+        .stat-card .value { font-size: 1.8rem; font-weight: 800; color: var(--primary); }
+        .stat-card .value.green { color: var(--green); }
+        .stat-card .label { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
         .empty { text-align: center; color: var(--muted); padding: 40px; }
-        .timing { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
-        #results { min-height: 100px; }
-        .spinner { display: none; text-align: center; padding: 30px; color: var(--muted); }
+        .spinner { display: none; text-align: center; padding: 30px; color: var(--muted); font-size: 1.1rem; }
         .spinner.active { display: block; }
+        .hidden { display: none; }
+
+        /* How it works explainer */
+        .explainer { background: linear-gradient(135deg, #eff6ff, #f5f3ff); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 28px; }
+        .explainer h3 { font-size: 1.1rem; margin-bottom: 12px; }
+        .explainer p { font-size: 0.92rem; color: var(--text); margin-bottom: 8px; }
+        .explainer .highlight { background: #fef3c7; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>wRag Query Preview</h1>
-        <p>Test queries and see exactly what Copilot receives from wRag</p>
+        <h1>wRag — Query Simulator</h1>
+        <p>See exactly how your AI assistant uses pre-indexed knowledge instead of scanning files one by one</p>
     </div>
+
     <div class="container">
-        <div class="search-box">
-            <form id="searchForm">
-                <div class="form-row">
-                    <input type="text" id="query" name="query" placeholder="Type your query... (e.g. 'how does auto-bundling work')" autofocus>
-                    <select id="tool" name="tool">
-                        <option value="search_code">search_code</option>
-                        <option value="search_docs">search_docs</option>
-                        <option value="search_symbol">search_symbol</option>
-                    </select>
-                    <select id="app_name" name="app_name">
-                        <option value="">All apps</option>
-                        <!-- filled dynamically -->
-                    </select>
-                    <button type="submit">Search</button>
+
+        <!-- How it works (always visible) -->
+        <div class="explainer">
+            <h3>What happens when you ask Copilot a question?</h3>
+            <p><strong>Without wRag:</strong> Copilot reads your project folder, opens files one by one, runs searches — each action costs a <span class="highlight">request</span> from your quota.</p>
+            <p><strong>With wRag:</strong> Copilot asks wRag "find me relevant code about X" → wRag instantly returns the right snippets from its pre-built index → Copilot uses those snippets to answer. <span class="highlight">1 call instead of 5-15.</span></p>
+        </div>
+
+        <!-- Flow Diagram -->
+        <div class="flow-section">
+            <h2>The Flow (Step by Step)</h2>
+            <div class="flow-diagram" id="flowDiagram">
+                <div class="flow-step" id="flow-1">
+                    <div class="icon">💬</div>
+                    <div class="title">Your Question</div>
+                    <div class="label">You type a prompt</div>
                 </div>
-            </form>
-            <div class="info-box">
-                <strong>How to use:</strong> Type the same prompt you'd ask Copilot. This shows the chunks wRag would return — the exact context Copilot uses instead of scanning files.
+                <div class="flow-arrow">→</div>
+                <div class="flow-step" id="flow-2">
+                    <div class="icon">🤖</div>
+                    <div class="title">Copilot Thinks</div>
+                    <div class="label">"I need context about this"</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step" id="flow-3">
+                    <div class="icon">🔍</div>
+                    <div class="title">wRag Search</div>
+                    <div class="label">Finds relevant code instantly</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step" id="flow-4">
+                    <div class="icon">📋</div>
+                    <div class="title">Context Injected</div>
+                    <div class="label">Code snippets added to prompt</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-step" id="flow-5">
+                    <div class="icon">✅</div>
+                    <div class="title">Answer</div>
+                    <div class="label">Copilot responds with knowledge</div>
+                </div>
             </div>
         </div>
 
-        <div id="statsSection">
+        <!-- Search Box -->
+        <div class="search-section">
+            <h2>Try It — Simulate a Copilot Query</h2>
+            <p class="subtitle">Type the same question you'd ask Copilot. We'll show you what happens behind the scenes.</p>
+            <form id="searchForm">
+                <div class="form-row">
+                    <input type="text" id="query" name="query" placeholder="e.g. How does auto-bundling work in this module?" autofocus>
+                    <select id="tool" name="tool">
+                        <option value="search_code">Code Search</option>
+                        <option value="search_docs">Docs Search</option>
+                        <option value="search_symbol">Symbol Lookup</option>
+                    </select>
+                    <select id="app_name" name="app_name">
+                        <option value="">All Projects</option>
+                    </select>
+                    <button type="submit">Simulate →</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="spinner" id="spinner">🔍 Searching the index...</div>
+
+        <!-- After search: step-by-step explanation -->
+        <div id="postSearch" class="hidden">
+
+            <!-- Step by step what happened -->
+            <div class="explanation">
+                <h3>Here's what just happened (what Copilot does behind the scenes):</h3>
+                <ol class="step-list" id="stepList"></ol>
+            </div>
+
+            <!-- Cost comparison -->
+            <div class="comparison" id="comparison"></div>
+
+            <!-- The actual context Copilot receives -->
+            <div class="results-section">
+                <h3>📋 The Context Copilot Receives</h3>
+                <p class="results-subtitle">These code snippets get injected into Copilot's prompt. It reads these instead of opening files individually.</p>
+                <div id="results"></div>
+            </div>
+        </div>
+
+        <!-- Cumulative stats -->
+        <div style="margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px;">
+            <h3 style="text-align: center; margin-bottom: 16px; color: var(--muted);">Session Statistics (All Queries)</h3>
             <div class="stats-grid" id="statsGrid"></div>
         </div>
 
-        <div class="spinner" id="spinner">Searching...</div>
-        <div id="results"></div>
-        <div class="timing" id="timing"></div>
     </div>
 
     <script>
-        // Load apps on page load
+        // Load apps
         fetch('/api/apps').then(r => r.json()).then(data => {
             const sel = document.getElementById('app_name');
             data.apps.forEach(a => {
@@ -124,19 +236,29 @@ HTML_PAGE = """<!DOCTYPE html>
             });
         });
 
-        // Load stats
         function loadStats() {
             fetch('/api/stats').then(r => r.json()).then(data => {
                 const grid = document.getElementById('statsGrid');
+                const saved = data.total * 3;
                 grid.innerHTML = `
-                    <div class="stat-card"><div class="value">${data.total}</div><div class="label">Total Tool Calls</div></div>
-                    <div class="stat-card"><div class="value">${data.total_results}</div><div class="label">Results Returned</div></div>
-                    <div class="stat-card"><div class="value">${data.total * 4}</div><div class="label">Estimated Native Requests</div></div>
-                    <div class="stat-card"><div class="value">${Math.round((1 - data.total / Math.max(data.total * 4, 1)) * 100)}%</div><div class="label">Savings</div></div>
+                    <div class="stat-card"><div class="value">${data.total}</div><div class="label">wRag Calls Made</div></div>
+                    <div class="stat-card"><div class="value">${data.total_results}</div><div class="label">Code Snippets Served</div></div>
+                    <div class="stat-card"><div class="value">${data.total * 4}</div><div class="label">Would Cost Without wRag</div></div>
+                    <div class="stat-card"><div class="value green">${Math.round((1 - data.total / Math.max(data.total * 4, 1)) * 100)}%</div><div class="label">Requests Saved</div></div>
                 `;
             });
         }
         loadStats();
+
+        // Animate flow steps
+        function animateFlow(step) {
+            for (let i = 1; i <= 5; i++) {
+                document.getElementById('flow-' + i).classList.remove('active');
+            }
+            if (step >= 1 && step <= 5) {
+                document.getElementById('flow-' + step).classList.add('active');
+            }
+        }
 
         // Search
         document.getElementById('searchForm').addEventListener('submit', function(e) {
@@ -146,35 +268,79 @@ HTML_PAGE = """<!DOCTYPE html>
 
             const tool = document.getElementById('tool').value;
             const app = document.getElementById('app_name').value;
-            const resultsDiv = document.getElementById('results');
+            const postSearch = document.getElementById('postSearch');
             const spinner = document.getElementById('spinner');
-            const timing = document.getElementById('timing');
 
+            postSearch.classList.add('hidden');
             spinner.classList.add('active');
-            resultsDiv.innerHTML = '';
-            timing.textContent = '';
+
+            // Animate: step 1
+            animateFlow(1);
+            setTimeout(() => animateFlow(2), 400);
+            setTimeout(() => animateFlow(3), 800);
 
             const start = performance.now();
             fetch(`/api/search?query=${encodeURIComponent(query)}&tool=${tool}&app_name=${app}&top_k=10`)
                 .then(r => r.json())
                 .then(data => {
-                    spinner.classList.remove('active');
                     const elapsed = ((performance.now() - start) / 1000).toFixed(2);
-                    timing.textContent = `${data.results.length} results in ${elapsed}s`;
+                    spinner.classList.remove('active');
+                    postSearch.classList.remove('hidden');
 
+                    // Animate: step 4, 5
+                    animateFlow(4);
+                    setTimeout(() => animateFlow(5), 600);
+
+                    // Build step-by-step explanation
+                    const toolLabel = tool === 'search_code' ? 'code search' : tool === 'search_docs' ? 'documentation search' : 'symbol lookup';
+                    const stepList = document.getElementById('stepList');
+                    stepList.innerHTML = `
+                        <li class="done"><span class="step-num">1</span><strong>You asked:</strong> "${escapeHtml(query)}"
+                            <span class="step-detail">This is your original prompt to Copilot.</span></li>
+                        <li class="done"><span class="step-num">2</span><strong>Copilot decides:</strong> "I need ${toolLabel} for this"
+                            <span class="step-detail">The AI determines the best tool to find relevant context.</span></li>
+                        <li class="done"><span class="step-num">3</span><strong>wRag searched:</strong> Found ${data.results.length} relevant snippets in ${elapsed}s
+                            <span class="step-detail">Vector similarity search across ${app || 'all'} indexed projects. No files opened, no folders scanned.</span></li>
+                        <li class="done"><span class="step-num">4</span><strong>Context injected:</strong> ${data.results.length} code blocks added to Copilot's prompt
+                            <span class="step-detail">Copilot now has targeted knowledge. It reads ONLY these snippets (shown below), not the whole project.</span></li>
+                        <li class="done"><span class="step-num">5</span><strong>Copilot answers:</strong> Uses the context above to give you an informed response
+                            <span class="step-detail">The answer is grounded in real code from your project — accurate and specific.</span></li>
+                    `;
+
+                    // Cost comparison
+                    const withoutCost = Math.max(data.results.length + 3, 6); // file reads + searches + structure
+                    const withCost = 1; // single wRag call
+                    const savings = Math.round((1 - withCost / withoutCost) * 100);
+                    document.getElementById('comparison').innerHTML = `
+                        <div class="compare-card without">
+                            <h4>❌ Without wRag</h4>
+                            <div class="cost red">~${withoutCost} requests</div>
+                            <div class="detail">Copilot would: list directory → read ${data.results.length} files → search for keywords → read related files</div>
+                        </div>
+                        <div class="compare-card with">
+                            <h4>✅ With wRag</h4>
+                            <div class="cost green">${withCost} request</div>
+                            <div class="detail">Copilot calls wRag once → gets all ${data.results.length} relevant snippets instantly (${elapsed}s)</div>
+                            <div style="margin-top:8px;font-weight:700;color:var(--green);">Saved: ${savings}% fewer requests</div>
+                        </div>
+                    `;
+
+                    // Results
+                    const resultsDiv = document.getElementById('results');
                     if (data.results.length === 0) {
-                        resultsDiv.innerHTML = '<div class="empty">No results found. Try a different query or check that the app is indexed.</div>';
+                        resultsDiv.innerHTML = '<div class="empty">No results found for this query. Try rephrasing or check indexing.</div>';
                         return;
                     }
 
                     resultsDiv.innerHTML = data.results.map((r, i) => {
                         const header = tool === 'search_docs'
-                            ? `<strong>${r.symbol_name}</strong> — ${r.path}`
+                            ? `<strong>${r.symbol_name}</strong>`
                             : `<strong>${r.path}</strong>:${r.start_line}-${r.end_line}`;
+                        const badge = r.symbol_type || 'chunk';
                         const meta = `${r.app_name} | ${r.language} | ${r.symbol_type}: ${r.symbol_name}` +
-                            (r.score !== undefined ? ` | distance: ${r.score.toFixed(4)}` : '');
+                            (r.score !== undefined ? ` | relevance: ${(1 - r.score).toFixed(2)}` : '');
                         return `<div class="result">
-                            <div class="result-header">#${i+1} ${header}</div>
+                            <div class="result-header"><span>#${i+1} ${header}</span><span class="badge">${badge}</span></div>
                             <div class="result-body">
                                 <div class="meta">${meta}</div>
                                 <pre>${escapeHtml(r.text)}</pre>
@@ -186,7 +352,8 @@ HTML_PAGE = """<!DOCTYPE html>
                 })
                 .catch(err => {
                     spinner.classList.remove('active');
-                    resultsDiv.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+                    document.getElementById('results').innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+                    postSearch.classList.remove('hidden');
                 });
         });
 
