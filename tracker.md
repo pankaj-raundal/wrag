@@ -72,6 +72,17 @@
 
 ---
 
+## Sprint 7: Preview UI + Query Testing ✅
+**Goal**: Local web UI to test queries, preview results, and validate what Copilot would receive from wRag
+
+- [x] Implement `src/wrag/web_ui.py` — Built-in HTTP server with search UI
+- [x] Create HTML template with search form, results display, tool selector
+- [x] Add CLI: `wrag ui` (starts local web server on port 8787)
+- [x] Show request log / stats in the UI
+- [x] Verify: open browser → search → see same results Copilot gets
+
+---
+
 ## Progress Summary
 
 | Sprint | Status | Tasks Done |
@@ -82,3 +93,4 @@
 | 4 | ✅ Complete | 5/5 |
 | 5 | ✅ Complete | 5/5 |
 | 6 | ✅ Complete | 5/5 |
+| 7 | ✅ Complete | 5/5 |

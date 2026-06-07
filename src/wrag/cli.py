@@ -213,10 +213,21 @@ def search(query: str, app: str | None, top_k: int):
 @main.command()
 def serve():
     """Start the MCP server (stdio mode) for VS Code / GitHub Copilot."""
+    import sys
     from wrag.mcp_server import run_stdio
 
-    console.print("[dim]Starting wRag MCP server (stdio)...[/dim]", err=True)
+    print("Starting wRag MCP server (stdio)...", file=sys.stderr)
     run_stdio()
+
+
+@main.command()
+@click.option("--port", default=8787, help="Port to run the UI on (default 8787)")
+def ui(port: int):
+    """Start the web UI to preview search results and test queries."""
+    from wrag.web_ui import run_ui
+
+    console.print(f"[green]Starting wRag UI on http://localhost:{port}[/green]")
+    run_ui(port=port)
 
 
 @main.command()

@@ -34,7 +34,7 @@ def _log_request(tool_name: str, query: str, results_count: int):
 def _embed_query(text: str) -> list[float]:
     """Embed a query string using the configured embedder."""
     cfg = load_config()
-    embedder = get_embedder(cfg.settings.embedding_model)
+    embedder = get_embedder(cfg.settings)
     vectors = embedder.embed([text])
     return vectors[0]
 

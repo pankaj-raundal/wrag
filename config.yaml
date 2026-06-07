@@ -1,4 +1,6 @@
-workspaces: []
+workspaces:
+- name: dconnector9
+  path: /home/pankajraundal/localsetup/dconnector933
 confluences: []
 settings:
   embedding_model: local

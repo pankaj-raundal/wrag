@@ -210,9 +210,14 @@ def _chunk_with_treesitter(
             visited_ranges.append((start_line, end_line))
         else:
             for child in node.children:
-                _walk(child, depth + 1)
+                if depth < 100:  # Cap recursion depth for deeply nested files
+                    _walk(child, depth + 1)
 
-    _walk(tree.root_node)
+    try:
+        _walk(tree.root_node)
+    except RecursionError:
+        # Fallback for extremely nested files
+        return _chunk_by_lines(content, file_path, app_name, language, max_lines, 10)
 
     # If no AST chunks found or file has significant uncovered regions,
     # add the remaining content as line-based chunks
