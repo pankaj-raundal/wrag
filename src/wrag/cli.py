@@ -322,5 +322,156 @@ def requests(reset: bool):
             console.print(f"  [{r['tool']}] \"{r['query'][:60]}\" → {r['results']} results")
 
 
+@main.command()
+@click.option("--record", is_flag=True, help="Record a new benchmark test interactively")
+@click.option("--clear", is_flag=True, help="Clear all benchmark data")
+def benchmark(record: bool, clear: bool):
+    """View or record benchmark comparison data (with vs without wRag)."""
+    from wrag.benchmark import get_benchmark_summary, record_test, _save_benchmark
+
+    if clear:
+        _save_benchmark({"tests": []})
+        console.print("[green]Benchmark data cleared.[/green]")
+        return
+
+    if record:
+        console.print("[bold]Record a benchmark test[/bold]")
+        console.print("[dim]Run the same prompt with and without wRag, note the usage counter.[/dim]\n")
+        prompt = click.prompt("Prompt tested")
+        without_requests = click.prompt("Usage delta WITHOUT wRag (e.g. 186.1)", type=float)
+        without_tool_calls = click.prompt("Tool calls visible WITHOUT wRag (count expandable items)", type=int)
+        with_requests = click.prompt("Usage delta WITH wRag", type=float)
+        with_tool_calls = click.prompt("Tool calls visible WITH wRag", type=int)
+        notes = click.prompt("Notes (optional)", default="", show_default=False)
+
+        record_test(
+            prompt=prompt,
+            without_wrag_requests=without_requests,
+            with_wrag_requests=with_requests,
+            without_wrag_tool_calls=without_tool_calls,
+            with_wrag_tool_calls=with_tool_calls,
+            notes=notes,
+        )
+        saved = without_requests - with_requests
+        pct = (1 - with_requests / max(without_requests, 0.1)) * 100
+        console.print(f"\n[green bold]✓ Recorded![/green bold] Saved {saved:.1f} requests ({pct:.0f}%)")
+        return
+
+    # Show summary
+    summary = get_benchmark_summary()
+    if summary["count"] == 0:
+        console.print("[yellow]No benchmark data yet.[/yellow]")
+        console.print("Run [bold]wrag benchmark --record[/bold] to add a test.")
+        return
+
+    console.print(f"\n[bold]Benchmark Results ({summary['count']} tests)[/bold]\n")
+
+    table = Table(title="")
+    table.add_column("#", style="dim")
+    table.add_column("Prompt", max_width=40)
+    table.add_column("Without wRag", style="red")
+    table.add_column("With wRag", style="green")
+    table.add_column("Saved", style="bold green")
+
+    for i, t in enumerate(summary["tests"], 1):
+        table.add_row(
+            str(i),
+            t["prompt"][:40],
+            f"{t['without_wrag']['requests']:.1f} req ({t['without_wrag']['tool_calls']} calls)",
+            f"{t['with_wrag']['requests']:.1f} req ({t['with_wrag']['tool_calls']} calls)",
+            f"{t['savings']['requests_saved']:.1f} ({t['savings']['percentage']}%)",
+        )
+
+    console.print(table)
+    totals = summary["totals"]
+    console.print(f"\n[bold]Totals:[/bold]")
+    console.print(f"  Without wRag: {totals['without_wrag_requests']:.1f} requests")
+    console.print(f"  With wRag:    {totals['with_wrag_requests']:.1f} requests")
+    console.print(f"  [green bold]Total saved: {totals['total_saved']:.1f} requests ({totals['average_savings_percent']}%)[/green bold]")
+
+
+@main.command()
+@click.option("--file", "otel_file", default=None, help="Path to OTel JSONL file (default: auto)")
+@click.option("--reset", is_flag=True, help="Clear the OTel JSONL file")
+def tokens(otel_file: str, reset: bool):
+    """Show real token savings measured via OpenTelemetry.
+
+    Requires OTel file export enabled in VS Code settings:
+      "github.copilot.chat.otel.enabled": true
+      "github.copilot.chat.otel.exporterType": "file"
+      "github.copilot.chat.otel.outfile": "<wRag-dir>/.data/copilot-otel.jsonl"
+    """
+    from wrag.otel_analyzer import OTEL_FILE, get_token_summary, parse_otel_file
+
+    path = otel_file or str(OTEL_FILE)
+
+    if reset:
+        import os
+        if os.path.exists(path):
+            os.remove(path)
+            console.print("[green]OTel token log cleared.[/green]")
+        else:
+            console.print("[yellow]No OTel log file found.[/yellow]")
+        return
+
+    if not Path(path).exists():
+        console.print(f"[yellow]OTel log not found:[/yellow] {path}")
+        console.print("\nEnable OTel in dconnector933/.vscode/settings.json:")
+        console.print('  "github.copilot.chat.otel.enabled": true')
+        console.print('  "github.copilot.chat.otel.exporterType": "file"')
+        console.print(f'  "github.copilot.chat.otel.outfile": "{path}"')
+        console.print("\nThen reload VS Code and ask Copilot some questions.")
+        return
+
+    summary = get_token_summary()
+
+    if not summary["has_data"]:
+        console.print("[yellow]OTel file exists but no session data yet.[/yellow]")
+        console.print("Ask Copilot questions in the dconnector933 workspace to generate data.")
+        return
+
+    savings = summary["savings"]
+    console.print(f"\n[bold]Real Token Savings (OpenTelemetry data)[/bold]")
+    console.print(f"[dim]Source: {path}[/dim]\n")
+
+    # Summary cards
+    console.print(f"  Sessions WITH wRag:     [bold green]{summary['wrag_session_count']}[/bold green]")
+    console.print(f"  Sessions WITHOUT wRag:  [bold red]{summary['baseline_session_count']}[/bold red]")
+    console.print()
+
+    if savings["wrag_sessions"] > 0 and savings["baseline_sessions"] > 0:
+        console.print(f"  Avg input tokens WITHOUT wRag:  [red]{savings['baseline_avg_input_tokens']:,}[/red]")
+        console.print(f"  Avg input tokens WITH wRag:     [green]{savings['wrag_avg_input_tokens']:,}[/green]")
+        console.print(f"  [bold green]Input token reduction:          {savings['input_token_reduction_pct']}%[/bold green]")
+        console.print(f"  [bold green]Total input tokens saved:       {savings['total_input_tokens_saved']:,}[/bold green]")
+    else:
+        console.print("[dim]Need both wRag and non-wRag sessions to compare.[/dim]")
+        console.print("[dim]Try asking questions with and without wRag MCP server running.[/dim]")
+
+    # Per-session table
+    sessions = summary["per_session"]
+    if sessions:
+        console.print()
+        table = Table(title="Per-Session Breakdown")
+        table.add_column("Session ID", style="dim", max_width=15)
+        table.add_column("Used wRag")
+        table.add_column("Input Tokens", justify="right")
+        table.add_column("Output Tokens", justify="right")
+        table.add_column("wRag Calls", justify="right", style="green")
+        table.add_column("Native Calls", justify="right", style="red")
+
+        for s in sessions[-20:]:  # last 20 sessions
+            table.add_row(
+                s["conversation_id"],
+                "[green]✓ Yes[/green]" if s["used_wrag"] else "[red]✗ No[/red]",
+                f"{s['input_tokens']:,}",
+                f"{s['output_tokens']:,}",
+                str(s["wrag_tool_calls"]),
+                str(s["native_tool_calls"]),
+            )
+
+        console.print(table)
+
+
 if __name__ == "__main__":
     main()

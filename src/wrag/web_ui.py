@@ -223,6 +223,28 @@ HTML_PAGE = """<!DOCTYPE html>
             <div class="stats-grid" id="statsGrid"></div>
         </div>
 
+        <!-- Real Benchmark Data -->
+        <div style="margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px;" id="benchmarkSection" class="hidden">
+            <h3 style="text-align: center; margin-bottom: 6px;">Real Measured Results</h3>
+            <p style="text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 16px;">Actual Copilot usage counter readings — same prompts tested with and without wRag</p>
+            <div id="benchmarkContent"></div>
+        </div>
+
+        <!-- OTel Real Token Savings -->
+        <div style="margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px;" id="tokenSection" class="hidden">
+            <h3 style="text-align: center; margin-bottom: 6px;">Real Token Savings <span style="font-size:0.75rem;background:var(--primary);color:white;padding:2px 8px;border-radius:99px;vertical-align:middle;">OpenTelemetry</span></h3>
+            <p style="text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 16px;">Actual LLM token counts from VS Code OTel traces — sessions with wRag vs without</p>
+            <div id="tokenContent"></div>
+        </div>
+
+        <div id="tokenSetupNotice" class="hidden" style="margin-top: 24px; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; padding: 20px; text-align: center;">
+            <p style="color: var(--muted); margin: 0 0 10px;">OTel not yet configured. Add to <code>dconnector933/.vscode/settings.json</code>:</p>
+            <pre style="text-align:left;background:#1e1e2e;color:#cdd6f4;padding:12px;border-radius:8px;font-size:0.8rem;display:inline-block;">"github.copilot.chat.otel.enabled": true,
+"github.copilot.chat.otel.exporterType": "file",
+"github.copilot.chat.otel.outfile": ".../.data/copilot-otel.jsonl"</pre>
+            <p style="color: var(--muted); margin: 10px 0 0; font-size: 0.8rem;">Then reload VS Code window and ask Copilot questions to generate real token data.</p>
+        </div>
+
     </div>
 
     <script>
@@ -246,6 +268,97 @@ HTML_PAGE = """<!DOCTYPE html>
                     <div class="stat-card"><div class="value">${data.total * 4}</div><div class="label">Would Cost Without wRag</div></div>
                     <div class="stat-card"><div class="value green">${Math.round((1 - data.total / Math.max(data.total * 4, 1)) * 100)}%</div><div class="label">Requests Saved</div></div>
                 `;
+            });
+
+            // Load real benchmark data
+            fetch('/api/benchmark').then(r => r.json()).then(data => {
+                if (data.count === 0) return;
+                const section = document.getElementById('benchmarkSection');
+                section.classList.remove('hidden');
+
+                let html = `<table style="width:100%;border-collapse:collapse;background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);">
+                    <thead><tr style="background:var(--primary);color:white;">
+                        <th style="padding:12px;text-align:left;">Prompt</th>
+                        <th style="padding:12px;text-align:center;">Without wRag</th>
+                        <th style="padding:12px;text-align:center;">With wRag</th>
+                        <th style="padding:12px;text-align:center;">Saved</th>
+                    </tr></thead><tbody>`;
+
+                data.tests.forEach(t => {
+                    const pct = t.savings.percentage;
+                    html += `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:12px;font-size:0.9rem;">${escapeHtml(t.prompt.substring(0, 50))}${t.prompt.length > 50 ? '...' : ''}</td>
+                        <td style="padding:12px;text-align:center;color:var(--red);font-weight:700;">${t.without_wrag.requests} req<br><span style="font-size:0.75rem;font-weight:400;">${t.without_wrag.tool_calls} tool calls</span></td>
+                        <td style="padding:12px;text-align:center;color:var(--green);font-weight:700;">${t.with_wrag.requests} req<br><span style="font-size:0.75rem;font-weight:400;">${t.with_wrag.tool_calls} tool calls</span></td>
+                        <td style="padding:12px;text-align:center;font-weight:800;color:var(--green);">${pct}%</td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table>`;
+
+                // Summary bar
+                const totals = data.totals;
+                html += `<div style="display:flex;gap:16px;margin-top:16px;justify-content:center;flex-wrap:wrap;">
+                    <div class="stat-card" style="flex:1;min-width:150px;"><div class="value" style="color:var(--red);">${totals.without_wrag_requests}</div><div class="label">Total Requests (Without)</div></div>
+                    <div class="stat-card" style="flex:1;min-width:150px;"><div class="value green">${totals.with_wrag_requests}</div><div class="label">Total Requests (With wRag)</div></div>
+                    <div class="stat-card" style="flex:1;min-width:150px;"><div class="value green">${totals.total_saved}</div><div class="label">Total Requests Saved</div></div>
+                    <div class="stat-card" style="flex:1;min-width:150px;"><div class="value green">${totals.average_savings_percent}%</div><div class="label">Average Savings</div></div>
+                </div>`;
+
+                document.getElementById('benchmarkContent').innerHTML = html;
+            });
+
+            // Load OTel real token data
+            fetch('/api/tokens').then(r => r.json()).then(data => {
+                if (!data.otel_enabled) {
+                    document.getElementById('tokenSetupNotice').classList.remove('hidden');
+                    return;
+                }
+                if (!data.has_data) return;
+
+                document.getElementById('tokenSection').classList.remove('hidden');
+                const savings = data.savings;
+                let html = '';
+
+                if (savings.baseline_sessions > 0 && savings.wrag_sessions > 0) {
+                    html += `<div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
+                        <div class="stat-card" style="flex:1;min-width:140px;"><div class="value" style="color:var(--red);">${savings.baseline_avg_input_tokens.toLocaleString()}</div><div class="label">Avg Input Tokens<br>(Without wRag)</div></div>
+                        <div class="stat-card" style="flex:1;min-width:140px;"><div class="value green">${savings.wrag_avg_input_tokens.toLocaleString()}</div><div class="label">Avg Input Tokens<br>(With wRag)</div></div>
+                        <div class="stat-card" style="flex:1;min-width:140px;"><div class="value green">${savings.input_token_reduction_pct}%</div><div class="label">Input Token<br>Reduction</div></div>
+                        <div class="stat-card" style="flex:1;min-width:140px;"><div class="value green">${savings.total_input_tokens_saved.toLocaleString()}</div><div class="label">Total Input Tokens<br>Saved</div></div>
+                    </div>`;
+                } else {
+                    html += `<p style="text-align:center;color:var(--muted);">Need sessions both with and without wRag to compare. ${data.wrag_session_count} wRag sessions, ${data.baseline_session_count} baseline sessions recorded.</p>`;
+                }
+
+                // Per-session table
+                if (data.per_session && data.per_session.length > 0) {
+                    html += `<table style="width:100%;border-collapse:collapse;background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);">
+                        <thead><tr style="background:var(--primary);color:white;">
+                            <th style="padding:10px;text-align:left;">Session</th>
+                            <th style="padding:10px;text-align:center;">wRag</th>
+                            <th style="padding:10px;text-align:right;">Input Tokens</th>
+                            <th style="padding:10px;text-align:right;">Output Tokens</th>
+                            <th style="padding:10px;text-align:center;">wRag Calls</th>
+                            <th style="padding:10px;text-align:center;">Native Calls</th>
+                        </tr></thead><tbody>`;
+
+                    data.per_session.slice(-15).forEach(s => {
+                        html += `<tr style="border-bottom:1px solid var(--border);">
+                            <td style="padding:8px 10px;font-family:monospace;font-size:0.8rem;">${s.conversation_id}</td>
+                            <td style="padding:8px 10px;text-align:center;">${s.used_wrag ? '<span style="color:var(--green);">✓</span>' : '<span style="color:var(--red);">✗</span>'}</td>
+                            <td style="padding:8px 10px;text-align:right;${s.used_wrag ? 'color:var(--green)' : 'color:var(--red)'};">${s.input_tokens.toLocaleString()}</td>
+                            <td style="padding:8px 10px;text-align:right;">${s.output_tokens.toLocaleString()}</td>
+                            <td style="padding:8px 10px;text-align:center;color:var(--green);">${s.wrag_tool_calls}</td>
+                            <td style="padding:8px 10px;text-align:center;color:var(--red);">${s.native_tool_calls}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                }
+
+                document.getElementById('tokenContent').innerHTML = html;
+            }).catch(() => {
+                document.getElementById('tokenSetupNotice').classList.remove('hidden');
             });
         }
         loadStats();
@@ -387,6 +500,10 @@ class WragUIHandler(BaseHTTPRequestHandler):
             self._handle_apps()
         elif path == "/api/stats":
             self._handle_stats()
+        elif path == "/api/benchmark":
+            self._handle_benchmark()
+        elif path == "/api/tokens":
+            self._handle_tokens()
         else:
             self._respond(404, {"error": "Not found"})
 
@@ -422,6 +539,14 @@ class WragUIHandler(BaseHTTPRequestHandler):
         # Add total chunks count (fast operation)
         stats["total_chunks"] = store.total_chunks()
         self._respond(200, stats)
+
+    def _handle_benchmark(self):
+        from wrag.benchmark import get_benchmark_summary
+        self._respond(200, get_benchmark_summary())
+
+    def _handle_tokens(self):
+        from wrag.otel_analyzer import get_token_summary
+        self._respond(200, get_token_summary())
 
     def _respond(self, status: int, data: dict):
         self.send_response(status)
