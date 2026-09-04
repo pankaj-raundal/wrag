@@ -43,7 +43,13 @@ class LocalEmbedder(Embedder):
         self._load_model()
         # Truncate very long texts to avoid OOM (model max is 256 tokens, ~512 words)
         truncated = [t[:2048] for t in texts]
-        embeddings = self._model.encode(truncated, show_progress_bar=False, normalize_embeddings=True)
+        embeddings = self._model.encode(
+            truncated,
+            show_progress_bar=False,
+            normalize_embeddings=True,
+            batch_size=64,
+            convert_to_numpy=True,
+        )
         return embeddings.tolist()
 
     def dimension(self) -> int:

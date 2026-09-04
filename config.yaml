@@ -6,38 +6,49 @@ settings:
   embedding_model: local
   chunk_max_lines: 60
   excluded_dirs:
-  - vendor
-  - node_modules
-  - .git
-  - __pycache__
-  - .venv
-  - venv
-  - .data
-  - .idea
-  - .tox
-  - dist
-  - build
+    - vendor
+    - node_modules
+    - .git
+    - __pycache__
+    - .venv
+    - venv
+    - .data
+    - .idea
+    - .tox
+    - dist
+    - build
+    - coverage
+    - reports
+    # Path-relative excludes (Drupal). Bare names above match anywhere;
+    # entries with "/" match only that exact tree from the workspace root,
+    # so custom modules under web/sites/default/modules/contrib/ still get indexed.
+    - web/core
+    - web/modules/contrib
+    - web/themes/contrib
+    - web/profiles/contrib
+    - web/libraries
+    - web/sites/default/files
   excluded_extensions:
-  - .lock
-  - .min.js
-  - .min.css
-  - .map
-  - .sql
-  - .patch
-  - .gz
-  - .zip
-  - .tar
-  - .png
-  - .jpg
-  - .jpeg
-  - .gif
-  - .ico
-  - .woff
-  - .woff2
-  - .ttf
-  - .eot
-  - .pdf
-  - .exe
-  - .dll
-  - .so
-  - .dylib
+    - .lock
+    - .min.js
+    - .min.css
+    - .map
+    - .sql
+    - .patch
+    - .gz
+    - .zip
+    - .tar
+    - .png
+    - .jpg
+    - .jpeg
+    - .gif
+    - .ico
+    - .woff
+    - .woff2
+    - .ttf
+    - .eot
+    - .pdf
+    - .exe
+    - .dll
+    - .so
+    - .dylib

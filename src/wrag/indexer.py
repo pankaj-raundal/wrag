@@ -8,7 +8,16 @@ from pathlib import Path
 from typing import Optional
 
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from wrag.chunker import chunk_file
 from wrag.config import (
@@ -28,6 +37,11 @@ console = Console()
 MANIFESTS_DIR = _PROJECT_ROOT / ".data" / "manifests"
 
 
+def _short_path(p: str, width: int = 48) -> str:
+    """Truncate long paths from the left for progress-line display."""
+    return p if len(p) <= width else "…" + p[-(width - 1):]
+
+
 def _load_manifest(app_name: str) -> dict[str, str]:
     """Load file hash manifest for an app. Returns {rel_path: content_hash}."""
     manifest_path = MANIFESTS_DIR / f"{app_name}.json"
@@ -43,6 +57,22 @@ def _save_manifest(app_name: str, manifest: dict[str, str]) -> None:
     manifest_path = MANIFESTS_DIR / f"{app_name}.json"
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
+
+
+def _load_stat_manifest(app_name: str) -> dict[str, str]:
+    """Load {rel_path: "size:mtime_ns"} sidecar cache."""
+    p = MANIFESTS_DIR / f"{app_name}.stat.json"
+    if p.exists():
+        with open(p, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def _save_stat_manifest(app_name: str, stat_manifest: dict[str, str]) -> None:
+    MANIFESTS_DIR.mkdir(parents=True, exist_ok=True)
+    p = MANIFESTS_DIR / f"{app_name}.stat.json"
+    with open(p, "w") as f:
+        json.dump(stat_manifest, f, indent=2)
 
 
 def index_workspace(
@@ -72,7 +102,9 @@ def index_workspace(
 
     # Load existing manifest
     old_manifest = {} if force else _load_manifest(app_name)
+    stat_cache = {} if force else _load_stat_manifest(app_name)
     new_manifest: dict[str, str] = {}
+    new_stat_manifest: dict[str, str] = {}
 
     files_scanned = 0
     files_indexed = 0
@@ -81,28 +113,55 @@ def index_workspace(
 
     # Collect files that need indexing
     files_to_index: list[FileEntry] = []
-    all_files: list[FileEntry] = []
 
-    console.print(f"[dim]Scanning {workspace_path}...[/dim]")
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[cyan]Scanning[/cyan] {task.description}"),
+        console=console,
+        transient=True,
+    ) as scan_progress:
+        scan_task = scan_progress.add_task(
+            f"{workspace_path} — 0 files (0 to reindex)",
+            total=None,
+        )
+        for file_entry in walk_workspace(
+            workspace_path,
+            settings,
+            stat_cache=stat_cache,
+            known_hashes=old_manifest,
+        ):
+            files_scanned += 1
+            new_manifest[file_entry.path] = file_entry.content_hash
+            new_stat_manifest[file_entry.path] = f"{file_entry.size}:{file_entry.mtime_ns}"
 
-    for file_entry in walk_workspace(workspace_path, settings):
-        files_scanned += 1
-        all_files.append(file_entry)
-        new_manifest[file_entry.path] = file_entry.content_hash
+            if file_entry.path in old_manifest and old_manifest[file_entry.path] == file_entry.content_hash:
+                files_skipped += 1
+            else:
+                files_to_index.append(file_entry)
 
-        if file_entry.path in old_manifest and old_manifest[file_entry.path] == file_entry.content_hash:
-            files_skipped += 1
-        else:
-            files_to_index.append(file_entry)
+            if files_scanned % 250 == 0:
+                scan_progress.update(
+                    scan_task,
+                    description=f"{workspace_path} — {files_scanned} files ({len(files_to_index)} to reindex)",
+                )
+
+    scan_elapsed = time.time() - start_time
+    console.print(
+        f"[dim]Scan done in {scan_elapsed:.1f}s — "
+        f"{files_scanned} files ({files_skipped} unchanged, "
+        f"{len(files_to_index)} to reindex)[/dim]"
+    )
 
     # Find deleted files (in old manifest but not in new)
     deleted_files = set(old_manifest.keys()) - set(new_manifest.keys())
-    for deleted_path in deleted_files:
-        store.delete_by_path(app_name, deleted_path)
+    if deleted_files:
+        console.print(f"[dim]Removing {len(deleted_files)} deleted files from index...[/dim]")
+        store.delete_by_paths(app_name, list(deleted_files))
 
     if not files_to_index:
         console.print(f"[green]✓[/green] No changes detected. {files_skipped} files unchanged.")
         _save_manifest(app_name, new_manifest)
+        _save_stat_manifest(app_name, new_stat_manifest)
         return {
             "files_scanned": files_scanned,
             "files_indexed": 0,
@@ -115,26 +174,60 @@ def index_workspace(
     # Process files: chunk → embed → store
     console.print(f"[dim]Indexing {len(files_to_index)} changed files...[/dim]")
 
+    # Reuse a single LanceDB table handle across the whole run
+    db = store.connect()
+    table = store._get_or_create_table(db, embedder.dimension())
+
     with Progress(
         SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
+        TextColumn("[bold blue]{task.fields[phase]:<8}[/bold blue]"),
+        BarColumn(bar_width=None),
+        MofNCompleteColumn(),
         TaskProgressColumn(),
+        TextColumn("• {task.fields[chunks]} chunks"),
+        TextColumn("• [dim]{task.fields[detail]}[/dim]"),
+        TextColumn("• elapsed"),
+        TimeElapsedColumn(),
+        TextColumn("• ETA"),
+        TimeRemainingColumn(compact=True),
         console=console,
     ) as progress:
-        task = progress.add_task("Indexing", total=len(files_to_index))
+        task = progress.add_task(
+            "Indexing",
+            total=len(files_to_index),
+            phase="starting",
+            chunks=0,
+            detail="",
+        )
 
-        # Process in batches for efficient embedding
-        batch_size = 20
+        # Larger batches amortize embedding + DB overhead across more files
+        batch_size = 100
+        total_batches = (len(files_to_index) + batch_size - 1) // batch_size
+
         for i in range(0, len(files_to_index), batch_size):
             batch = files_to_index[i : i + batch_size]
+            batch_num = i // batch_size + 1
+
+            # Phase 1: delete old chunks for this batch's paths
+            progress.update(
+                task,
+                phase="cleanup",
+                detail=f"batch {batch_num}/{total_batches} · {len(batch)} files",
+            )
+            store.delete_by_paths(
+                app_name,
+                [fe.path for fe in batch],
+                table=table,
+            )
+
+            # Phase 2: chunk each file
+            progress.update(task, phase="chunking")
             batch_chunks = []
-
             for file_entry in batch:
-                # Delete old chunks for this file
-                store.delete_by_path(app_name, file_entry.path)
-
-                # Chunk the file
+                progress.update(
+                    task,
+                    detail=f"chunk · {_short_path(file_entry.path)}",
+                )
                 chunks = chunk_file(
                     content=file_entry.content,
                     file_path=file_entry.path,
@@ -144,25 +237,40 @@ def index_workspace(
                 batch_chunks.extend(chunks)
 
             if batch_chunks:
-                # Embed all chunks in this batch
+                # Phase 3: embed all chunks in this batch
+                progress.update(
+                    task,
+                    phase="embedding",
+                    detail=f"batch {batch_num}/{total_batches} · {len(batch_chunks)} chunks",
+                )
                 texts = [c.text for c in batch_chunks]
                 vectors = embedder.embed(texts)
 
-                # Store
+                # Phase 4: write to LanceDB
+                progress.update(task, phase="storing")
                 chunk_dicts = [c.to_dict() for c in batch_chunks]
                 count = store.upsert_chunks(
                     app_name=app_name,
                     chunks=chunk_dicts,
                     vectors=vectors,
                     dimension=embedder.dimension(),
+                    table=table,
+                    skip_delete=True,
                 )
                 chunks_added += count
 
             files_indexed += len(batch)
-            progress.update(task, advance=len(batch))
+            progress.update(
+                task,
+                advance=len(batch),
+                phase="done" if files_indexed >= len(files_to_index) else "next",
+                chunks=chunks_added,
+                detail=f"batch {batch_num}/{total_batches} complete",
+            )
 
-    # Save updated manifest
+    # Save updated manifests
     _save_manifest(app_name, new_manifest)
+    _save_stat_manifest(app_name, new_stat_manifest)
 
     elapsed = time.time() - start_time
     console.print(

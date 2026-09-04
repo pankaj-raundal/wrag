@@ -73,6 +73,8 @@ def upsert_chunks(
     chunks: list[dict],
     vectors: list[list[float]],
     dimension: int = 384,
+    table=None,
+    skip_delete: bool = False,
 ) -> int:
     """Insert or update chunks in the store.
 
@@ -81,6 +83,9 @@ def upsert_chunks(
         chunks: List of chunk dicts (from Chunk.to_dict())
         vectors: Corresponding embedding vectors
         dimension: Vector dimension (default 384 for MiniLM)
+        table: Optional pre-opened LanceDB table handle (avoids reopen per batch)
+        skip_delete: When True, skip the per-id predicate delete (caller
+            already batch-deleted by path).
 
     Returns:
         Number of chunks upserted
@@ -88,8 +93,9 @@ def upsert_chunks(
     if not chunks:
         return 0
 
-    db = connect()
-    table = _get_or_create_table(db, dimension)
+    if table is None:
+        db = connect()
+        table = _get_or_create_table(db, dimension)
 
     now = time.time()
     records = []
@@ -109,13 +115,16 @@ def upsert_chunks(
             "vector": vector,
         })
 
-    # Delete existing chunks with same IDs then add new ones
-    ids_to_replace = [r["id"] for r in records]
-    try:
-        table.delete(f"id IN {tuple(ids_to_replace)}" if len(ids_to_replace) > 1
-                     else f"id = '{ids_to_replace[0]}'")
-    except Exception:
-        pass  # Table might be empty or IDs don't exist
+    if not skip_delete:
+        ids_to_replace = [r["id"] for r in records]
+        try:
+            table.delete(
+                f"id IN {tuple(ids_to_replace)}"
+                if len(ids_to_replace) > 1
+                else f"id = '{ids_to_replace[0]}'"
+            )
+        except Exception:
+            pass
 
     table.add(records)
     return len(records)
@@ -156,6 +165,43 @@ def delete_by_path(app_name: str, file_path: str) -> int:
         table.delete(f"app_name = '{app_name}' AND path = '{file_path}'")
 
     return count
+
+
+def _sql_quote(s: str) -> str:
+    """Escape a value for embedding into a DataFusion SQL literal."""
+    return s.replace("'", "''")
+
+
+def delete_by_paths(app_name: str, file_paths: list[str], table=None) -> int:
+    """Batched delete — one predicate scan per chunk of paths instead of per file.
+
+    Args:
+        app_name: source app scope
+        file_paths: relative paths to delete
+        table: optional pre-opened LanceDB table handle for reuse
+    """
+    if not file_paths:
+        return 0
+
+    if table is None:
+        db = connect()
+        if TABLE_NAME not in db.table_names():
+            return 0
+        table = db.open_table(TABLE_NAME)
+
+    chunk = 400
+    total = 0
+    for i in range(0, len(file_paths), chunk):
+        batch = file_paths[i : i + chunk]
+        in_list = ", ".join(f"'{_sql_quote(p)}'" for p in batch)
+        predicate = f"app_name = '{_sql_quote(app_name)}' AND path IN ({in_list})"
+        try:
+            table.delete(predicate)
+            total += len(batch)
+        except Exception:
+            # Skip malformed batch; caller can retry per-file if needed
+            continue
+    return total
 
 
 def search(

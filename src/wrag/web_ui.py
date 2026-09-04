@@ -219,15 +219,53 @@ HTML_PAGE = """<!DOCTYPE html>
 
         <!-- Cumulative stats -->
         <div style="margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px;">
-            <h3 style="text-align: center; margin-bottom: 16px; color: var(--muted);">Session Statistics (All Queries)</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="color: var(--muted);">Session Statistics (All Queries)</h3>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <label style="font-size:0.8rem;color:var(--muted);"><input type="checkbox" id="autoRefresh" checked> Auto-refresh (5s)</label>
+                    <button id="refreshBtn" style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.8rem;">↻ Refresh</button>
+                    <button id="clearLogBtn" style="padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:0.8rem;color:var(--red);">Clear log</button>
+                </div>
+            </div>
             <div class="stats-grid" id="statsGrid"></div>
         </div>
 
-        <!-- Real Benchmark Data -->
+        <!-- Indexed Sources (live from LanceDB) -->
+        <div style="margin-top: 32px;">
+            <h3 style="text-align: center; margin-bottom: 6px;">Indexed Sources</h3>
+            <p style="text-align:center;color:var(--muted);font-size:0.85rem;margin-bottom:14px;">Live from LanceDB — updates whenever you re-index.</p>
+            <div id="sourcesTable"></div>
+        </div>
+
+        <!-- Recent MCP Queries (live feed) -->
+        <div style="margin-top: 32px;">
+            <h3 style="text-align: center; margin-bottom: 6px;">Recent Queries from Copilot</h3>
+            <p style="text-align:center;color:var(--muted);font-size:0.85rem;margin-bottom:14px;">Real MCP tool calls that Copilot made against your workspace (last 20).</p>
+            <div id="recentQueries"></div>
+        </div>
+
+        <!-- Live Query Analytics (derived from real MCP request log) -->
+        <div style="margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px;">
+            <h3 style="text-align: center; margin-bottom: 6px;">Live Query Analytics</h3>
+            <p style="text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 16px;">
+                Derived in real-time from <code>.data/request_log.jsonl</code> — every MCP tool call Copilot has made.
+            </p>
+            <div id="analyticsContent"><div class="empty" style="padding:20px;">Loading…</div></div>
+        </div>
+
+        <!-- Manual Benchmark Runs (user-recorded via `wrag benchmark --record`) -->
         <div style="margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px;" id="benchmarkSection" class="hidden">
-            <h3 style="text-align: center; margin-bottom: 6px;">Real Measured Results</h3>
-            <p style="text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 16px;">Actual Copilot usage counter readings — same prompts tested with and without wRag</p>
+            <h3 style="text-align: center; margin-bottom: 6px;">Manual Benchmark Runs</h3>
+            <p style="text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 16px;">
+                Hand-recorded before/after tests. Add new runs with <code>wrag benchmark --record</code>.
+            </p>
             <div id="benchmarkContent"></div>
+        </div>
+
+        <div id="benchmarkEmpty" style="margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px; text-align:center; color:var(--muted);" class="hidden">
+            <h3 style="margin-bottom:6px;">Manual Benchmark Runs</h3>
+            <p style="font-size:0.85rem;">No manual benchmarks recorded yet.</p>
+            <p style="font-size:0.8rem;margin-top:6px;">Record one with <code>wrag benchmark --record</code> in your terminal.</p>
         </div>
 
         <!-- OTel Real Token Savings -->
@@ -261,23 +299,145 @@ HTML_PAGE = """<!DOCTYPE html>
         function loadStats() {
             fetch('/api/stats').then(r => r.json()).then(data => {
                 const grid = document.getElementById('statsGrid');
-                const saved = data.total * 3;
                 grid.innerHTML = `
                     <div class="stat-card"><div class="value">${data.total}</div><div class="label">wRag Calls Made</div></div>
                     <div class="stat-card"><div class="value">${data.total_results}</div><div class="label">Code Snippets Served</div></div>
+                    <div class="stat-card"><div class="value">${data.total_chunks ?? 0}</div><div class="label">Total Chunks Indexed</div></div>
                     <div class="stat-card"><div class="value">${data.total * 4}</div><div class="label">Would Cost Without wRag</div></div>
                     <div class="stat-card"><div class="value green">${Math.round((1 - data.total / Math.max(data.total * 4, 1)) * 100)}%</div><div class="label">Requests Saved</div></div>
                 `;
+
+                // Recent queries feed
+                const rq = document.getElementById('recentQueries');
+                if (!data.recent || data.recent.length === 0) {
+                    rq.innerHTML = '<div class="empty" style="padding:20px;">No MCP queries yet. Start <code>wrag serve</code> and ask Copilot a question in the target workspace.</div>';
+                } else {
+                    const rows = data.recent.slice().reverse().map(r => {
+                        const ts = new Date(r.ts * 1000).toLocaleString();
+                        const toolColor = r.tool === 'search_code' ? 'var(--primary)' : r.tool === 'search_docs' ? 'var(--purple)' : 'var(--green)';
+                        return `<tr style="border-bottom:1px solid var(--border);">
+                            <td style="padding:8px 10px;font-size:0.75rem;color:var(--muted);white-space:nowrap;">${ts}</td>
+                            <td style="padding:8px 10px;"><span style="background:${toolColor};color:white;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;">${r.tool}</span></td>
+                            <td style="padding:8px 10px;font-size:0.85rem;">${escapeHtml(r.query)}</td>
+                            <td style="padding:8px 10px;text-align:right;font-weight:700;">${r.results}</td>
+                        </tr>`;
+                    }).join('');
+                    rq.innerHTML = `<table style="width:100%;border-collapse:collapse;background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);">
+                        <thead><tr style="background:var(--primary);color:white;">
+                            <th style="padding:10px;text-align:left;">Time</th>
+                            <th style="padding:10px;text-align:left;">Tool</th>
+                            <th style="padding:10px;text-align:left;">Query</th>
+                            <th style="padding:10px;text-align:right;">Hits</th>
+                        </tr></thead><tbody>${rows}</tbody></table>`;
+                }
+            });
+
+            // Indexed sources (live from LanceDB)
+            fetch('/api/sources').then(r => r.json()).then(data => {
+                const el = document.getElementById('sourcesTable');
+                const entries = Object.entries(data.sources || {});
+                if (entries.length === 0) {
+                    el.innerHTML = '<div class="empty" style="padding:20px;">No sources indexed yet. Run <code>wrag index</code>.</div>';
+                    return;
+                }
+                const rows = entries.map(([name, s]) => {
+                    const last = s.last_indexed ? new Date(s.last_indexed * 1000).toLocaleString() : '—';
+                    return `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:10px;font-weight:700;color:var(--primary);">${escapeHtml(name)}</td>
+                        <td style="padding:10px;font-size:0.85rem;">${s.source_type}</td>
+                        <td style="padding:10px;text-align:right;">${s.file_count}</td>
+                        <td style="padding:10px;text-align:right;font-weight:700;">${s.chunk_count}</td>
+                        <td style="padding:10px;font-size:0.8rem;">${(s.languages || []).join(', ')}</td>
+                        <td style="padding:10px;font-size:0.75rem;color:var(--muted);white-space:nowrap;">${last}</td>
+                    </tr>`;
+                }).join('');
+                el.innerHTML = `<table style="width:100%;border-collapse:collapse;background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);">
+                    <thead><tr style="background:var(--primary);color:white;">
+                        <th style="padding:10px;text-align:left;">Source</th>
+                        <th style="padding:10px;text-align:left;">Type</th>
+                        <th style="padding:10px;text-align:right;">Files</th>
+                        <th style="padding:10px;text-align:right;">Chunks</th>
+                        <th style="padding:10px;text-align:left;">Languages</th>
+                        <th style="padding:10px;text-align:left;">Last Indexed</th>
+                    </tr></thead><tbody>${rows}</tbody></table>`;
+            });
+
+            // Live query analytics (derived from real MCP request log)
+            fetch('/api/analytics').then(r => r.json()).then(a => {
+                const el = document.getElementById('analyticsContent');
+                if (!a.total) {
+                    el.innerHTML = '<div class="empty" style="padding:20px;">No MCP queries logged yet. Once Copilot invokes wRag tools, live analytics will populate here automatically.</div>';
+                    return;
+                }
+                const first = a.first_seen ? new Date(a.first_seen * 1000).toLocaleString() : '—';
+                const last  = a.last_seen  ? new Date(a.last_seen  * 1000).toLocaleString() : '—';
+
+                let html = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+                    <div class="stat-card" style="flex:1;min-width:140px;"><div class="value">${a.total}</div><div class="label">Total MCP Calls</div></div>
+                    <div class="stat-card" style="flex:1;min-width:140px;"><div class="value">${a.total_hits}</div><div class="label">Total Snippets Returned</div></div>
+                    <div class="stat-card" style="flex:1;min-width:140px;"><div class="value green">${a.avg_hits}</div><div class="label">Avg Hits / Call</div></div>
+                    <div class="stat-card" style="flex:1;min-width:140px;"><div class="value">${a.activity.last_hour}</div><div class="label">Last Hour</div></div>
+                    <div class="stat-card" style="flex:1;min-width:140px;"><div class="value">${a.activity.last_24h}</div><div class="label">Last 24h</div></div>
+                    <div class="stat-card" style="flex:1;min-width:140px;"><div class="value">${a.activity.last_7d}</div><div class="label">Last 7 days</div></div>
+                </div>`;
+
+                html += `<p style="font-size:0.75rem;color:var(--muted);text-align:center;margin-bottom:14px;">
+                    First call: ${first} &nbsp;·&nbsp; Latest: ${last}
+                </p>`;
+
+                if (a.by_tool.length) {
+                    const rows = a.by_tool.map(t => {
+                        const ls = t.last_ts ? new Date(t.last_ts * 1000).toLocaleString() : '—';
+                        return `<tr style="border-bottom:1px solid var(--border);">
+                            <td style="padding:10px;font-weight:700;color:var(--primary);">${escapeHtml(t.tool)}</td>
+                            <td style="padding:10px;text-align:right;">${t.count}</td>
+                            <td style="padding:10px;text-align:right;">${t.avg_hits}</td>
+                            <td style="padding:10px;font-size:0.8rem;color:var(--muted);">${ls}</td>
+                        </tr>`;
+                    }).join('');
+                    html += `<h4 style="margin:16px 0 8px;font-size:0.95rem;">By Tool</h4>
+                        <table style="width:100%;border-collapse:collapse;background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);">
+                            <thead><tr style="background:var(--primary);color:white;">
+                                <th style="padding:10px;text-align:left;">Tool</th>
+                                <th style="padding:10px;text-align:right;">Calls</th>
+                                <th style="padding:10px;text-align:right;">Avg Hits</th>
+                                <th style="padding:10px;text-align:left;">Last Used</th>
+                            </tr></thead><tbody>${rows}</tbody></table>`;
+                }
+
+                if (a.top_queries.length) {
+                    const rows = a.top_queries.map((q, i) => `<tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:8px 10px;color:var(--muted);width:30px;">${i + 1}</td>
+                        <td style="padding:8px 10px;font-size:0.85rem;">${escapeHtml(q.query)}</td>
+                        <td style="padding:8px 10px;text-align:right;font-weight:700;">${q.count}×</td>
+                    </tr>`).join('');
+                    html += `<h4 style="margin:20px 0 8px;font-size:0.95rem;">Top Queries</h4>
+                        <table style="width:100%;border-collapse:collapse;background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);">
+                            <thead><tr style="background:var(--primary);color:white;">
+                                <th style="padding:10px;text-align:left;">#</th>
+                                <th style="padding:10px;text-align:left;">Query</th>
+                                <th style="padding:10px;text-align:right;">Frequency</th>
+                            </tr></thead><tbody>${rows}</tbody></table>`;
+                }
+
+                el.innerHTML = html;
             });
 
             // Load real benchmark data
             fetch('/api/benchmark').then(r => r.json()).then(data => {
-                if (data.count === 0) return;
                 const section = document.getElementById('benchmarkSection');
+                const empty = document.getElementById('benchmarkEmpty');
+                if (data.count === 0) {
+                    section.classList.add('hidden');
+                    empty.classList.remove('hidden');
+                    return;
+                }
+                empty.classList.add('hidden');
                 section.classList.remove('hidden');
 
                 let html = `<table style="width:100%;border-collapse:collapse;background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);">
                     <thead><tr style="background:var(--primary);color:white;">
+                        <th style="padding:12px;text-align:left;">Recorded</th>
                         <th style="padding:12px;text-align:left;">Prompt</th>
                         <th style="padding:12px;text-align:center;">Without wRag</th>
                         <th style="padding:12px;text-align:center;">With wRag</th>
@@ -286,8 +446,10 @@ HTML_PAGE = """<!DOCTYPE html>
 
                 data.tests.forEach(t => {
                     const pct = t.savings.percentage;
+                    const when = t.timestamp ? new Date(t.timestamp * 1000).toLocaleDateString() : '—';
                     html += `<tr style="border-bottom:1px solid var(--border);">
-                        <td style="padding:12px;font-size:0.9rem;">${escapeHtml(t.prompt.substring(0, 50))}${t.prompt.length > 50 ? '...' : ''}</td>
+                        <td style="padding:12px;font-size:0.75rem;color:var(--muted);white-space:nowrap;">${when}</td>
+                        <td style="padding:12px;font-size:0.9rem;">${escapeHtml(t.prompt.substring(0, 50))}${t.prompt.length > 50 ? '…' : ''}</td>
                         <td style="padding:12px;text-align:center;color:var(--red);font-weight:700;">${t.without_wrag.requests} req<br><span style="font-size:0.75rem;font-weight:400;">${t.without_wrag.tool_calls} tool calls</span></td>
                         <td style="padding:12px;text-align:center;color:var(--green);font-weight:700;">${t.with_wrag.requests} req<br><span style="font-size:0.75rem;font-weight:400;">${t.with_wrag.tool_calls} tool calls</span></td>
                         <td style="padding:12px;text-align:center;font-weight:800;color:var(--green);">${pct}%</td>
@@ -362,6 +524,16 @@ HTML_PAGE = """<!DOCTYPE html>
             });
         }
         loadStats();
+
+        setInterval(() => {
+            const cb = document.getElementById('autoRefresh');
+            if (cb && cb.checked) loadStats();
+        }, 5000);
+        document.getElementById('refreshBtn').addEventListener('click', loadStats);
+        document.getElementById('clearLogBtn').addEventListener('click', () => {
+            if (!confirm('Clear the MCP request log? Aggregate stats reset to 0.')) return;
+            fetch('/api/stats/reset', { method: 'POST' }).then(() => loadStats());
+        });
 
         // Animate flow steps
         function animateFlow(step) {
@@ -500,6 +672,10 @@ class WragUIHandler(BaseHTTPRequestHandler):
             self._handle_apps()
         elif path == "/api/stats":
             self._handle_stats()
+        elif path == "/api/sources":
+            self._handle_sources()
+        elif path == "/api/analytics":
+            self._handle_analytics()
         elif path == "/api/benchmark":
             self._handle_benchmark()
         elif path == "/api/tokens":
@@ -507,11 +683,26 @@ class WragUIHandler(BaseHTTPRequestHandler):
         else:
             self._respond(404, {"error": "Not found"})
 
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/stats/reset":
+            try:
+                if _STATS_FILE.exists():
+                    _STATS_FILE.unlink()
+                self._respond(200, {"ok": True})
+            except Exception as e:
+                self._respond(500, {"error": str(e)})
+            return
+        self._respond(404, {"error": "Not found"})
+
     def _serve_html(self):
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(HTML_PAGE.encode("utf-8"))
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(HTML_PAGE.encode("utf-8"))
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     def _handle_search(self, params):
         query = params.get("query", [""])[0]
@@ -540,6 +731,89 @@ class WragUIHandler(BaseHTTPRequestHandler):
         stats["total_chunks"] = store.total_chunks()
         self._respond(200, stats)
 
+    def _handle_sources(self):
+        self._respond(200, {"sources": store.stats()})
+
+    def _handle_analytics(self):
+        """Derive live analytics from the MCP request log."""
+        analytics = {
+            "total": 0,
+            "total_hits": 0,
+            "avg_hits": 0.0,
+            "by_tool": [],
+            "top_queries": [],
+            "activity": {"last_hour": 0, "last_24h": 0, "last_7d": 0},
+            "first_seen": None,
+            "last_seen": None,
+        }
+        if not _STATS_FILE.exists():
+            self._respond(200, analytics)
+            return
+
+        now = time.time()
+        per_tool: dict[str, dict] = {}
+        query_counts: dict[str, int] = {}
+
+        with open(_STATS_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                ts = rec.get("ts", 0)
+                tool = rec.get("tool", "unknown")
+                hits = int(rec.get("results", 0))
+                q = (rec.get("query") or "").strip()
+
+                analytics["total"] += 1
+                analytics["total_hits"] += hits
+                analytics["first_seen"] = ts if analytics["first_seen"] is None else min(analytics["first_seen"], ts)
+                analytics["last_seen"] = ts if analytics["last_seen"] is None else max(analytics["last_seen"], ts)
+
+                t = per_tool.setdefault(tool, {"tool": tool, "count": 0, "hits": 0, "last_ts": 0})
+                t["count"] += 1
+                t["hits"] += hits
+                t["last_ts"] = max(t["last_ts"], ts)
+
+                if q:
+                    query_counts[q] = query_counts.get(q, 0) + 1
+
+                delta = now - ts
+                if delta <= 3600:
+                    analytics["activity"]["last_hour"] += 1
+                if delta <= 86400:
+                    analytics["activity"]["last_24h"] += 1
+                if delta <= 7 * 86400:
+                    analytics["activity"]["last_7d"] += 1
+
+        if analytics["total"]:
+            analytics["avg_hits"] = round(analytics["total_hits"] / analytics["total"], 2)
+
+        analytics["by_tool"] = sorted(
+            [
+                {
+                    "tool": t["tool"],
+                    "count": t["count"],
+                    "avg_hits": round(t["hits"] / max(t["count"], 1), 2),
+                    "last_ts": t["last_ts"],
+                }
+                for t in per_tool.values()
+            ],
+            key=lambda x: x["count"],
+            reverse=True,
+        )
+        analytics["top_queries"] = sorted(
+            [{"query": q, "count": c} for q, c in query_counts.items()],
+            key=lambda x: x["count"],
+            reverse=True,
+        )[:10]
+
+        self._respond(200, analytics)
+
     def _handle_benchmark(self):
         from wrag.benchmark import get_benchmark_summary
         self._respond(200, get_benchmark_summary())
@@ -549,11 +823,14 @@ class WragUIHandler(BaseHTTPRequestHandler):
         self._respond(200, get_token_summary())
 
     def _respond(self, status: int, data: dict):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(json.dumps(data, default=str).encode("utf-8"))
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(data, default=str).encode("utf-8"))
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
 
 def run_ui(port: int = 8787):
