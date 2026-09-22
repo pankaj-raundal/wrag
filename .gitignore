@@ -19,6 +19,15 @@ env/
 .idea/
 .vscode/settings.json
 
+# Secrets / local env
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+credentials.env
+
 # OS
 .DS_Store
 Thumbs.db
